@@ -267,3 +267,39 @@ def parse_logs(
             parse_single_file(input_file, output_dir)
 
     return parsed_log_dir, parsed_ranks
+
+
+def save_logs(out_dir: Path, parsed_logs: str, overwrite: bool, verbose: bool) -> None:
+    """
+    Save logs to a local directory.
+
+    Args:
+        out_dir: Path to output directory
+        parsed_logs: Path to directory containing parsed logs
+        overwrite: Whether to overwrite existing logs
+        verbose: Whether to print verbose information
+    """
+    if out_dir.exists():
+        if not overwrite:
+            raise RuntimeError(
+                f"{out_dir} already exists, pass --overwrite to overwrite"
+            )
+        shutil.rmtree(out_dir)
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    logger.info(f"Copying parsed logs from {parsed_logs} to {out_dir}")
+
+    # Copy each item in the parsed_logs directory to the output directory
+    for item in os.listdir(parsed_logs):
+        src_path = os.path.join(parsed_logs, item)
+        dst_path = os.path.join(out_dir, item)
+
+        if os.path.isdir(src_path):
+            if verbose:
+                logger.info(f"Copying directory {src_path}/ to {dst_path}/")
+            shutil.copytree(src_path, dst_path)
+        else:
+            if verbose:
+                logger.info(f"Copying file from {src_path} to {dst_path}")
+            shutil.copy2(src_path, dst_path)
