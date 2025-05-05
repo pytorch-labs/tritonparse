@@ -188,3 +188,82 @@ def copy_local_to_tmpdir(local_path: str, verbose: bool = False) -> str:
             shutil.copy2(item_path, temp_dir)
 
     return temp_dir
+
+
+def parse_logs(
+    logs_to_parse: str,
+    rank_config: RankConfig,
+    verbose: bool = False,
+) -> Tuple[str, List[str]]:
+    """
+    Parse logs.
+
+    Args:
+        logs_to_parse: Path to directory containing logs to parse
+        rank_config: Rank configuration
+        verbose: Whether to print verbose information
+
+    Returns:
+        Tuple of (parsed log directory, list of parsed ranks)
+    """
+
+    raw_log_dir = logs_to_parse
+    parsed_log_dir = tempfile.mkdtemp()
+
+    # Dictionary to store ranks and their log files
+    ranks = defaultdict(list)  # Dict[Rank, List[str]]
+
+    # Find all eligible logs in the raw log directory
+    for item in os.listdir(raw_log_dir):
+        path = os.path.join(raw_log_dir, item)
+        if not os.path.isfile(path):
+            continue
+
+        log_name = f"{LOG_PREFIX}{rank_config.to_rank().to_string('')}"
+
+        if log_name in item:
+            # Check if the log has a rank in its name
+            rank_match = LOG_RANK_REGEX.search(item)
+            if rank_match:
+                # If we have a rank, add it to the list of ranks
+                rank_value = int(rank_match.group(1))
+                rank = Rank(rank_value)
+                ranks[rank].append(path)
+            elif rank_config.is_local:
+                # Local logs don't always have a rank associated with them, we can push as default
+                rank = Rank()
+                if rank in ranks:
+                    ranks[rank].append(path)
+                else:
+                    ranks[rank] = [path]
+
+    if not ranks:
+        raise RuntimeError(f"No eligible structured trace logs found in {raw_log_dir}")
+
+    parsed_ranks = []
+
+    # Parse each eligible log
+    for rank, files in ranks.items():
+        use_filenames = False
+        if len(files) > 1:
+            logger.warning(
+                "Warning: multiple logs found for the same rank. Using filenames."
+            )
+            use_filenames = True
+
+        for file_path in files:
+            filename = os.path.basename(file_path)
+            input_file = os.path.join(raw_log_dir, filename)
+
+            relative_path = ""
+            if use_filenames:
+                rank_prefix = "" if rank.is_default else f"{rank.to_string('')}/"
+                relative_path = f"{rank_prefix}{filename}"
+            else:
+                relative_path = rank.to_string("")
+
+            output_dir = os.path.join(parsed_log_dir, relative_path)
+            parsed_ranks.append(relative_path)
+            parse_single_file(input_file, output_dir)
+
+    return parsed_log_dir, parsed_ranks
