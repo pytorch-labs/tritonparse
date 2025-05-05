@@ -135,3 +135,56 @@ class RankConfig:
         if self.rank:
             return self.rank
         return Rank()
+
+
+def gzip_folder(folder: str, parsed_ranks: List[str], verbose: bool) -> None:
+    """
+    Gzip all files in a folder.
+
+    Args:
+        folder: Path to folder
+        verbose: Whether to print verbose information
+    """
+    for parsed_rank in parsed_ranks:
+        target_folder = os.path.join(folder, parsed_rank)
+        for filename in os.listdir(target_folder):
+            if filename.endswith(".gz"):
+                continue
+
+            file_path = os.path.join(target_folder, filename)
+            if os.path.isfile(file_path):
+                if verbose:
+                    logger.info(f"Gzipping {file_path}")
+                with open(file_path, "rb") as f_in:
+                    with gzip.open(file_path + ".gz", "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                # Delete the original file after successful compression
+                os.remove(file_path)
+                if verbose:
+                    logger.info(f"Deleted original file {file_path}")
+    logger.info(f"Compressed all files in {folder}")
+
+
+def copy_local_to_tmpdir(local_path: str, verbose: bool = False) -> str:
+    """
+    Copy local log files to a temporary directory.
+
+    Args:
+        local_path: Path to local directory containing logs
+        verbose: Whether to print verbose information
+
+    Returns:
+        Path to temporary directory containing copied logs
+    """
+    temp_dir = tempfile.mkdtemp()
+
+    for item in os.listdir(local_path):
+        item_path = os.path.join(local_path, item)
+        if os.path.isfile(item_path) and os.path.basename(item_path).startswith(
+            LOG_PREFIX
+        ):
+            if verbose:
+                logger.info(f"Copying {item_path} to {temp_dir}")
+            shutil.copy2(item_path, temp_dir)
+
+    return temp_dir
