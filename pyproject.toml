@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tritonparse"
+version = "0.0.1"
+dependencies = [
+    "triton",
+]
+
+[tool.setuptools.packages.find]
+include = ["tritonparse*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[project.urls]
+"Homepage" = "https://github.com/pytorch-labs/tritonparse"
