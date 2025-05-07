@@ -347,6 +347,90 @@ def extract_ptx_amdgcn_mappings(
     return mappings
 
 
+def generate_source_mappings(
+    ir_content: str, ir_type: str, other_mappings: List[Any] = None
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Generate source mappings from intermediate representation (IR) content to the source file.
+    Example:
+    loc definition: Line 39 in ttir: #loc2 = loc("/tmp/torchinductor_yhao/yp/abcdef.py":20:28)
+    loc reference: Line 9 in ttir: %0 = tt.get_program_id x : i32 loc(#loc2)
+    Then, the output will be:
+    {
+        "9": {
+            "file": "/tmp/torchinductor_yhao/yp/abcdef.py",
+            "line": 20,
+            "column": 28,
+            "ttir_line": 9
+        },
+    }
+
+    Args:
+        ir_content (str): The content of the intermediate representation.
+        ir_type (str): The type of the intermediate representation (e.g., 'ttir').
+        other_mappings (List[Any]): A collection of additional mappings, primarily utilized for PTX mappings since PTX's location annotations reference the file name instead of the complete path.
+
+    Returns:
+        Dict[str, Dict[str, Any]]: A dictionary mapping line numbers to their corresponding source file,
+        line, column, and the line number in the IR.
+    """
+    if other_mappings is None:
+        other_mappings = []
+    if ir_type == "ptx" or ir_type == "amdgcn":
+        return extract_ptx_amdgcn_mappings(ir_content, other_mappings, ir_type)
+
+    loc_defs = extract_loc_definitions(ir_content)
+    logger.info(f"Found {len(loc_defs)} #loc definitions")
+
+    loc_refs = extract_code_locations(ir_content)
+    logger.info(f"Found {len(loc_refs)} loc references")
+
+    mappings = {}
+    for ln, loc_id in loc_refs.items():
+        if loc_id.startswith("direct:"):
+            _, file_path, line, col = loc_id.split(":", 3)
+            mappings[str(ln)] = {
+                "file": file_path,
+                "line": int(line),
+                "column": int(col),
+                f"{ir_type}_line": ln,
+            }
+        elif loc_id in loc_defs:
+            info = loc_defs[loc_id]
+            mappings[str(ln)] = {
+                "file": info["file"],
+                "line": info["line"],
+                "column": info["column"],
+                f"{ir_type}_line": ln,
+            }
+
+    return mappings
+
+
+def process_ir(
+    key: str,
+    file_content: Dict[str, str],
+    file_path: Dict[str, str],
+    other_mappings: List[Any] = None,
+):
+    # Generate source mappings for each IR type
+    # the key should be the full file name with extension for the IR files
+    if not key:
+        return {}
+    logger.info(f"Processing {key}")
+    ir_content = file_content.get(key, None)
+    if not ir_content:
+        ir_file_path = file_path.get(key, None)
+        if not ir_file_path:
+            logger.warning(f"No content found for {key}")
+            return {}
+        with open(ir_file_path, "r") as f:
+            ir_content = f.read()
+    mapping = generate_source_mappings(ir_content, key.split(".")[1], other_mappings)
+    logger.info(f"Generated source mapping for {key}")
+    return mapping
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Extract source code mappings from Triton trace files."
