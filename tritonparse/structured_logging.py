@@ -7,6 +7,7 @@ formatters, handlers, and helper functions to capture and store detailed
 information about Triton kernels, their compilation artifacts, and execution.
 """
 
+import inspect
 import atexit
 import json
 import logging
@@ -24,8 +25,8 @@ except ImportError:
     TORCH_INSTALLED = False
 
 
-# Define a custom LogRecord type with additional attributes for structured logging
 class TritonLogRecord(logging.LogRecord):
+    # Define a custom LogRecord type with additional attributes for structured logging
     metadata: Dict[str, Any]
     payload: Optional[Union[str, Dict[str, Any], list]]
 
@@ -103,7 +104,8 @@ class TritonJsonFormatter(logging.Formatter):
         record_as_triton = cast(TritonLogRecord, record)
 
         log_entry = getattr(record_as_triton, "metadata", {})
-        log_entry["timestamp"] = self.formatTime(record, "%Y-%m-%dT%H:%M:%S.%fZ")
+        log_entry["timestamp"] = self.formatTime(
+            record, "%Y-%m-%dT%H:%M:%S.%fZ")
         payload = getattr(record, "payload", None)
         if payload is not None:
             log_entry["payload"] = json.loads(payload)
@@ -132,59 +134,65 @@ class TritonTraceHandler(logging.StreamHandler):
 
     def emit(self, record):
         if self.stream is None:
-            if self.root_dir is not None:
+            if self.root_dir is None:
+                # For meta internal runs, we use the /logs directory by default
+                # reference implementation
+                # https://github.com/pytorch/pytorch/blob/5fe58ab5bd9e14cce3107150a9956a2ed40d2f79/torch/_logging/_internal.py#L1071
+                TRACE_LOG_DIR = "/logs"
+                should_set_root_dir = True
                 if TORCH_INSTALLED:
-                    # reference implementation
-                    # https://github.com/pytorch/pytorch/blob/5fe58ab5bd9e14cce3107150a9956a2ed40d2f79/torch/_logging/_internal.py#L1071
-                    TRACE_LOG_DIR = "/logs"
-
                     import torch.version as torch_version
-
                     if (
                         hasattr(torch_version, "git_version")
                         and os.getenv("MAST_HPC_JOB_NAME") is None
                     ):
                         log.info(
-                            "LazyTraceHandler: disabled because not fbcode or conda on mast"
+                            "TritonTraceHandler: disabled because not fbcode or conda on mast"
                         )
+                        should_set_root_dir = False
+                    # TODO: change to tritonparse knob
                     elif not torch._utils_internal.justknobs_check(
                         "pytorch/trace:enable"
                     ):
                         log.info(
-                            "LazyTraceHandler: disabled because justknobs_check('pytorch/trace:enable') returned False"
+                            "TritonTraceHandler: disabled because justknobs_check('pytorch/trace:enable') returned False"
                         )
-                    elif not os.path.exists(TRACE_LOG_DIR):
+                        should_set_root_dir = False
+                else:
+                    if not os.path.exists(TRACE_LOG_DIR):
                         log.info(
-                            "LazyTraceHandler: disabled because %s does not exist",
+                            "TritonTraceHandler: disabled because %s does not exist",
                             TRACE_LOG_DIR,
                         )
+                        should_set_root_dir = False
                     elif not os.access(TRACE_LOG_DIR, os.W_OK):
                         log.info(
-                            "LazyTraceHandler: disabled because %s is not writeable",
+                            "TritonTraceHandler: disabled because %s is not writeable",
                             TRACE_LOG_DIR,
                         )
-                    else:
-                        self.root_dir = TRACE_LOG_DIR
+                        should_set_root_dir = False
+                if should_set_root_dir:
+                    self.root_dir = TRACE_LOG_DIR
 
-                if self.root_dir is not None:
-                    os.makedirs(self.root_dir, exist_ok=True)
-                    ranksuffix = ""
-                    try:
-                        import torch.distributed as dist
+            # Create directory and file
+            if self.root_dir is not None:
+                os.makedirs(self.root_dir, exist_ok=True)
+                ranksuffix = ""
+                if TORCH_INSTALLED:
+                    import torch.distributed as dist
+                    if dist.is_available() and dist.is_initialized():
+                        ranksuffix = f"rank_{dist.get_rank()}_"
+                filename = f"{self.prefix}{ranksuffix}"
+                self.stream = open(
+                    os.path.join(self.root_dir, f"{filename}.ndjson"),
+                    mode="a+",
+                )
+                log.debug("TritonTraceHandler: logging to %s",
+                          self.stream.name)
+            else:
+                triton_trace_log.removeHandler(self)
+                return
 
-                        if dist.is_available() and dist.is_initialized():
-                            ranksuffix = f"rank_{dist.get_rank()}_"
-                    except ImportError:
-                        pass
-                    filename = f"{self.prefix}{ranksuffix}"
-                    self.stream = open(
-                        os.path.join(self.root_dir, f"{filename}.ndjson"),
-                        mode="a+",
-                    )
-                    log.debug("TritonTraceHandler: logging to %s", self.stream.name)
-                else:
-                    triton_trace_log.removeHandler(self)
-                    return
         if self.stream:
             formatted = self.format(record)
             self.stream.write(formatted)
@@ -199,10 +207,8 @@ class TritonTraceHandler(logging.StreamHandler):
                     try:
                         self.flush()
                     finally:
-                        stream = self.stream
+                        self.stream.close()
                         self.stream = None
-                        if hasattr(stream, "close"):
-                            stream.close()
             finally:
                 # Solution adopted from PyTorch PR #120289
                 logging.StreamHandler.close(self)
@@ -220,14 +226,13 @@ def trace_structured_triton(
     metadata_fn: Callable[[], Dict[str, Any]] = dict,
     *,
     payload_fn: Callable[[], Optional[Union[str, object]]] = lambda: None,
-    new_file: bool = True,
 ):
     """
     Record structured trace information for Triton kernel compilation.
 
     This function is the main entry point for logging structured trace events
     in the Triton system. It handles initialization of the logging system if needed,
-    creates new log files when requested, and formats the trace data with metadata
+    creates new log files, and formats the trace data with metadata
     and payload information.
 
     Args:
@@ -236,7 +241,6 @@ def trace_structured_triton(
                                in the trace record
         payload_fn (Callable): Function that returns the payload data (can be a string,
                               dictionary, or other serializable object)
-        new_file (bool): Whether to create a new log file for this trace event
     """
     global TRITON_TRACE_HANDLER
     global triton_trace_folder
@@ -249,8 +253,8 @@ def trace_structured_triton(
         TRITON_TRACE_HANDLER = None
         _init_logs()
 
-    # Create new file if requested
-    if new_file and TRITON_TRACE_HANDLER and TRITON_TRACE_HANDLER.stream is not None:
+    # Create new file if TRITON_TRACE_HANDLER exists and has a stream
+    if TRITON_TRACE_HANDLER and TRITON_TRACE_HANDLER.stream is not None:
         TRITON_TRACE_HANDLER.close()
         TRITON_TRACE_HANDLER.stream = None
 
@@ -264,7 +268,8 @@ def trace_structured_triton(
 
     # Log the record
     payload = payload_fn()
-    triton_trace_log.debug("", extra={"metadata": metadata_dict, "payload": payload})
+    triton_trace_log.debug(
+        "", extra={"metadata": metadata_dict, "payload": payload})
 
 
 def extract_python_source_info(trace_data: Dict[str, Any], source: Any):
@@ -279,9 +284,8 @@ def extract_python_source_info(trace_data: Dict[str, Any], source: Any):
         trace_data (Dict[str, Any]): Dictionary to store extracted information
         source (Union[ASTSource, IRSource]): Source object containing kernel function information
     """
-
-    import inspect
-
+    if not source:
+        return
     # Get the original Python source code for the kernel
     target_fn = source.fn.fn
     python_source_file = inspect.getfile(target_fn)
@@ -304,6 +308,8 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
         trace_data (Dict): Dictionary to store extracted information
         metadata_group (Dict): Dictionary mapping filenames to file paths
     """
+    if not metadata_group:
+        return
     for ir_filename, file_path in metadata_group.items():
         # Add file path to trace data
         trace_data["file_path"][ir_filename] = file_path
@@ -321,13 +327,16 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
 
                 with open(file_path, "r") as f:
                     trace_data["file_content"][ir_filename] = f.read()
-            except (IOError, UnicodeDecodeError):
-                # Skip if file can't be read as text
-                pass
+            except (IOError, UnicodeDecodeError, OSError) as e:
+                # add more specific error type
+                trace_data["file_content"][
+                    ir_filename] = f"<error reading file: {str(e)}>"
+                log.debug(f"Error reading file {file_path}: {e}")
 
 
 def maybe_trace_triton(
     src: Union[Any, Any],
+    metadata: Dict[str, Any],
     metadata_group: Dict[str, Any],
     times: Any,
     event_type: str = "compilation",
@@ -349,6 +358,7 @@ def maybe_trace_triton(
 
     Args:
         src (Union[ASTSource, IRSource]): Source object containing kernel information
+        metadata (Dict[str, Any]): Dictionary containing metadata for the compilation
         metadata_group (Dict[str, Any]): Dictionary mapping filenames to file paths for all compilation artifacts
         times (CompileTimes): Object containing timing information for the compilation
         event_type (str): Type of event being traced (default: "compilation")
@@ -361,43 +371,33 @@ def maybe_trace_triton(
     trace_data = defaultdict(dict)
     # Add cache_hit to metadata
     trace_data["metadata"]["cache_hit"] = cache_hit
-    metadata_path = next(
-        (Path(p) for c, p in metadata_group.items() if c.endswith(".json"))
-    )
-    # Extract metadata from the JSON file if available
-    if metadata_path is not None:
-        try:
-            with open(metadata_path, "r") as f:
-                metadata = json.load(f)
-                # Copy all metadata fields to the trace data
-                for key, value in metadata.items():
-                    trace_data["metadata"][key] = value
-        except (IOError, json.JSONDecodeError) as e:
-            log.warning(f"Failed to load metadata from {metadata_path}: {e}")
+    if not metadata:
+        metadata_path = next(
+            (Path(p) for c, p in metadata_group.items() if c.endswith(".json"))
+        )
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+            # Copy all metadata fields to the trace data
+            for key, value in metadata.items():
+                trace_data["metadata"][key] = value
     # Handle torch._guards which might not be recognized by type checker
-    try:
-        import torch
-
+    if TORCH_INSTALLED:
         trace_id = torch._guards.CompileContext.current_trace_id()  # type: ignore
-    except (AttributeError, ImportError):
+    else:
         trace_id = None
     cid = trace_id.compile_id if trace_id else None
     if cid is not None:
-        if cid.compiled_autograd_id is not None:
-            trace_data["pt_info"]["compiled_autograd_id"] = cid.compiled_autograd_id
-        if cid.frame_id is not None:
-            trace_data["pt_info"]["frame_id"] = cid.frame_id
-        if cid.frame_compile_id is not None:
-            trace_data["pt_info"]["frame_compile_id"] = cid.frame_compile_id
+        for attr_name in ["compiled_autograd_id", "frame_id", "frame_compile_id"]:
+            attr_value = getattr(cid, attr_name, None)
+            if attr_value is not None:
+                trace_data["pt_info"][attr_name] = attr_value
     if trace_id:
         trace_data["pt_info"]["attempt"] = trace_id.attempt
     # Extract content from all IR and other files in the metadata group
-    if metadata_group:
-        extract_file_content(trace_data, metadata_group)
+    extract_file_content(trace_data, metadata_group)
 
     # Extract Python source code information if available
-    if src:
-        extract_python_source_info(trace_data, src)
+    extract_python_source_info(trace_data, src)
 
     # Log the collected information through the tracing system
     trace_structured_triton(
@@ -408,5 +408,19 @@ def maybe_trace_triton(
     return trace_data
 
 
-def init():
+def init(trace_folder: Optional[str] = None):
+    """
+    Initialize the structured logging system for Triton compilation.
+
+    This function sets up the logging system for Triton kernel compilation traces,
+    including the TRITON_TRACE environment variable and the TRITON_TRACE_HANDLER.
+
+    Args:
+        trace_folder (Optional[str]): The folder to store the trace files.
+    """
+    global triton_trace_folder
+    if triton_trace_folder is not None and trace_folder is not None:
+        log.info("Conflict settings: TRITON_TRACE is already set to %s, we will use provided trace_folder(%s) instead.",
+                 triton_trace_folder, trace_folder)
+    triton_trace_folder = trace_folder
     triton.knobs.compilation.listener = maybe_trace_triton
