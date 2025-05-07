@@ -522,6 +522,84 @@ def parse_single_trace_content(trace_content: str) -> str:
     return json.dumps(entry, separators=(",", ":")) + "\n"
 
 
+def parse_single_file(
+    file_path: str,
+    output_dir: str = None,
+    split_by_frame_id_and_compile_id: bool = True,
+):
+    """
+    Process a single file and extract source code mappings.
+
+    This function takes a file path as input, reads the file content, and extracts
+    source code mappings from Triton trace JSON files. It processes each line of the file,
+    parses the trace content to extract IR mappings, and writes the updated content
+    to output files.
+
+    Args:
+        file_path (str): The path to the file to be processed.
+        output_dir (str, optional): Directory to save the output files with mappings.
+        split_by_frame_id_and_compile_id (bool, optional): Whether to split output files
+            by frame_id and compile_id. Defaults to True.
+
+    Returns:
+        None. The function writes the processed data to files in the output_dir.
+        Each output file will contain the original trace data enriched with source mappings
+        in NDJSON format (one JSON object per line).
+    """
+    outputs = defaultdict(list)
+    with open(file_path, "r") as f:
+        file_name = os.path.basename(file_path)
+        file_name_without_extension = os.path.splitext(file_name)[0]
+        for i, line in enumerate(f):
+            logger.info(f"Processing line {i + 1} in {file_path}")
+            # Skip empty lines
+            if not line.strip():
+                continue
+            parsed_line = parse_single_trace_content(line)
+            if not parsed_line:
+                logger.warning(f"Failed to parse line {i + 1} in {file_path}")
+                continue
+
+            parsed_json = json.loads(parsed_line)
+            payload = parsed_json.get("payload", None)
+            if split_by_frame_id_and_compile_id:
+                # TODO: this is a workaround. need to update for the latest format
+                if not payload:
+                    logger.warning("No payload found in the parsed JSON.")
+                    continue
+                frame_id = parsed_json["payload"].get("frame_id", None)
+                frame_compile_id = parsed_json["payload"].get("frame_compile_id", None)
+                compiled_autograd_id = parsed_json["payload"].get(
+                    "compiled_autograd_id", None
+                )
+                attempt_id = parsed_json["payload"].get("attempt_id", None)
+                output_file_name = ""
+                if frame_id is not None or frame_compile_id is not None:
+                    output_file_name = f"f{frame_id}_fc{frame_compile_id}"
+                if compiled_autograd_id is not None:
+                    output_file_name += f"_ca{compiled_autograd_id}"
+                if attempt_id is not None:
+                    output_file_name += f"_a{attempt_id}"
+                if output_file_name == "":
+                    logger.warning(
+                        "No frame_id or frame_compile_id found in the payload."
+                    )
+                    output_file_name = f"{file_name_without_extension}_mapped.json"
+                else:
+                    output_file_name = f"{output_file_name}.json"
+            else:
+                output_file_name = f"{file_name_without_extension}_mapped.json"
+            output_file = os.path.join(output_dir, output_file_name)
+            outputs[output_file].append(parsed_line)
+            logger.info(f"output file: {output_file}")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    for output_file, parsed_lines in outputs.items():
+        with open(output_file, "w") as out:
+            out.writelines(parsed_lines)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Extract source code mappings from Triton trace files."
