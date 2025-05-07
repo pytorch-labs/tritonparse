@@ -12,7 +12,7 @@ and extracts bidirectional mappings between:
 """
 
 import argparse
-
+import json
 import logging
 import os
 import re
@@ -429,6 +429,97 @@ def process_ir(
     mapping = generate_source_mappings(ir_content, key.split(".")[1], other_mappings)
     logger.info(f"Generated source mapping for {key}")
     return mapping
+
+
+def parse_single_trace_content(trace_content: str) -> str:
+    """
+    Process a single trace content and extract source code mappings.
+
+    This function takes a trace content as input, extracts the IR files, generates source mappings,
+    creates bidirectional mappings between different IR types, and updates the payload with the mappings.
+
+    Args:
+        trace_content (str): The content of the trace file as a string.
+
+    Returns:
+        str: The updated trace content with source mappings as a JSON string.
+    """
+
+    entry = json.loads(trace_content)
+    if entry.get("event_type") != "triton.kernel" and "payload" in entry:
+        logger.warning("Not a triton.kernel event. Skipping.")
+        return ""
+    payload = entry.setdefault("payload", {})
+    file_content = payload.get("file_content", {})
+    file_path = payload.get("file_path", {})
+
+    # Find the IR file keys
+    ttir_key = next((k for k in file_content if k.endswith(".ttir")), None)
+    ttgir_key = next((k for k in file_content if k.endswith(".ttgir")), None)
+    ptx_key = next((k for k in file_content if k.endswith(".ptx")), None)
+    amdgcn_key = next((k for k in file_content if k.endswith(".amdgcn")), None)
+    # Skip if no IR files found
+    if not (ttir_key or ttgir_key or ptx_key or amdgcn_key):
+        logger.warning("No IR files found in the payload.")
+        return trace_content
+
+    # generate ttir->source, ttgir->source, ptx->source
+    ttir_map = process_ir(ttir_key, file_content, file_path)
+    ttgir_map = process_ir(ttgir_key, file_content, file_path)
+    ptx_map = process_ir(ptx_key, file_content, file_path, [ttir_map, ttgir_map])
+    amdgcn_map = process_ir(amdgcn_key, file_content, file_path, [ttir_map, ttgir_map])
+
+    # Create bidirectional mappings between all IR types
+    ir_maps = {
+        "ttir": ttir_map,
+        "ttgir": ttgir_map,
+        "ptx": ptx_map,
+        "amdgcn": amdgcn_map,
+    }
+
+    # Create mappings between all pairs of IR types
+    ir_types = list(ir_maps.keys())
+    for i, src_type in enumerate(ir_types):
+        for tgt_type in ir_types[i + 1 :]:
+            if ir_maps[src_type] and ir_maps[tgt_type]:
+                create_bidirectional_mapping(
+                    ir_maps[src_type], ir_maps[tgt_type], src_type, tgt_type
+                )
+                logger.info(
+                    f"Created bidirectional mapping between {src_type} and {tgt_type}"
+                )
+
+    if "python_source" in payload:
+        logger.info(
+            f"Added Python source information (lines {payload['python_source']['start_line']}-{payload['python_source']['end_line']})"
+        )
+
+        # 4. Create Python source to IR mappings. We use the original line numbers as key in the python source code.
+        # Create a list of valid IR mappings, filtering out None keys
+        ir_mappings = []
+        ir_keys_and_maps = [
+            (ttir_key, ttir_map),
+            (ttgir_key, ttgir_map),
+            (ptx_key, ptx_map),
+            (amdgcn_key, amdgcn_map),
+        ]
+
+        for key, mapping in ir_keys_and_maps:
+            if key:
+                ir_mappings.append((get_file_extension(key), mapping))
+
+        py_map = create_python_mapping(ir_mappings)
+
+    # Store the mappings in the payload
+    payload["source_mappings"] = {
+        "ttir": ttir_map,
+        "ttgir": ttgir_map,
+        **({"ptx": ptx_map} if ptx_map else {}),
+        **({"amdgcn": amdgcn_map} if amdgcn_map else {}),
+        "python": py_map,
+    }
+    # NDJSON format requires a newline at the end of each line
+    return json.dumps(entry, separators=(",", ":")) + "\n"
 
 
 def parse_args():
