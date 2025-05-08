@@ -14,9 +14,70 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Callable, cast, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import triton
+from triton.compiler import ASTSource, IRSource
+
+
+class TritonLogRecord(logging.LogRecord):
+    """
+    Custom LogRecord class for structured logging of Triton operations.
+
+    Extends the standard LogRecord with additional attributes for storing
+    structured metadata and payload information.
+    """
+
+    def __init__(self, name, level, pathname, lineno, msg, args, exc_info,
+                 metadata=None, payload=None, **kwargs):
+        super().__init__(name, level, pathname, lineno, msg, args, exc_info, **kwargs)
+        self.metadata: Dict[str, Any] = metadata or {}
+        self.payload: Optional[Union[str, Dict[str, Any], list]] = payload
+
+
+def create_triton_log_record(name=None, level=logging.DEBUG, pathname=None, lineno=None,
+                             msg="", args=(), exc_info=None,
+                             metadata=None, payload=None, **kwargs):
+    """
+    Factory method to create TritonLogRecord instances with sensible defaults.
+
+    Args:
+        name (str, optional): Logger name. Defaults to triton_trace_log.name.
+        level (int, optional): Log level. Defaults to DEBUG.
+        pathname (str, optional): Path to the file where the log call was made. Defaults to current file.
+        lineno (int, optional): Line number where the log call was made. Defaults to current line.
+        msg (str, optional): Log message. Defaults to empty string.
+        args (tuple, optional): Arguments to interpolate into the message. Defaults to empty tuple.
+        exc_info (optional): Exception information. Defaults to None.
+        metadata (Dict[str, Any], optional): Structured metadata for the log record. Defaults to empty dict.
+        payload (optional): Payload data. Defaults to None.
+        **kwargs: Additional keyword arguments for LogRecord
+
+    Returns:
+        TritonLogRecord: A custom log record with structured data
+    """
+    if pathname is None:
+        pathname = __file__
+    if lineno is None:
+        lineno = inspect.currentframe().f_back.f_lineno
+    if name is None:
+        name = triton_trace_log.name
+
+    record = TritonLogRecord(name, level, pathname, lineno, msg, args, exc_info,
+                             metadata=metadata, payload=payload, **kwargs)
+    return record
+
+
+TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB limit for file content extraction
+
+log = logging.getLogger(__name__)
+
+
+triton_trace_log = logging.getLogger("triton.trace")
+TRITON_TRACE_HANDLER = None
+triton_trace_folder = os.getenv("TRITON_TRACE", None)
+
 
 TORCH_INSTALLED = True
 try:
@@ -24,20 +85,14 @@ try:
 except ImportError:
     TORCH_INSTALLED = False
 
-
-class TritonLogRecord(logging.LogRecord):
-    # Define a custom LogRecord type with additional attributes for structured logging
-    metadata: Dict[str, Any]
-    payload: Optional[Union[str, Dict[str, Any], list]]
-
-
-TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB limit for file content extraction
-
-log = logging.getLogger(__name__)
-triton_trace_log = logging.getLogger("triton.trace")
-TRITON_TRACE_HANDLER = None
-triton_trace_folder = os.getenv("TRITON_TRACE", None)
+def maybe_enable_debug_logging():
+    if os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]:
+        log_handler = logging.StreamHandler()
+        log_handler.setLevel(logging.DEBUG)
+        log_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        log.setLevel(logging.DEBUG)
+        log.addHandler(log_handler)
 
 
 def _init_logs():
@@ -98,15 +153,11 @@ class TritonJsonFormatter(logging.Formatter):
     """
 
     def format(self, record: logging.LogRecord):
-        # Cast to our custom type for type checking
-        # Using typing.cast to tell the type checker that record is actually a TritonLogRecord
-        # This doesn't change the runtime behavior, just helps with type checking
-        record_as_triton = cast(TritonLogRecord, record)
+        log_entry = record.metadata
+        payload = record.payload
 
-        log_entry = getattr(record_as_triton, "metadata", {})
         log_entry["timestamp"] = self.formatTime(
             record, "%Y-%m-%dT%H:%M:%S.%fZ")
-        payload = getattr(record, "payload", None)
         if payload is not None:
             log_entry["payload"] = json.loads(payload)
         # NDJSON format requires a newline at the end of each line
@@ -133,70 +184,78 @@ class TritonTraceHandler(logging.StreamHandler):
         atexit.register(self._cleanup)
 
     def emit(self, record):
-        if self.stream is None:
-            if self.root_dir is None:
-                # For meta internal runs, we use the /logs directory by default
-                # reference implementation
-                # https://github.com/pytorch/pytorch/blob/5fe58ab5bd9e14cce3107150a9956a2ed40d2f79/torch/_logging/_internal.py#L1071
-                TRACE_LOG_DIR = "/logs"
-                should_set_root_dir = True
-                if TORCH_INSTALLED:
-                    import torch.version as torch_version
-                    if (
-                        hasattr(torch_version, "git_version")
-                        and os.getenv("MAST_HPC_JOB_NAME") is None
-                    ):
-                        log.info(
-                            "TritonTraceHandler: disabled because not fbcode or conda on mast"
-                        )
-                        should_set_root_dir = False
-                    # TODO: change to tritonparse knob
-                    elif not torch._utils_internal.justknobs_check(
-                        "pytorch/trace:enable"
-                    ):
-                        log.info(
-                            "TritonTraceHandler: disabled because justknobs_check('pytorch/trace:enable') returned False"
-                        )
-                        should_set_root_dir = False
+        try:
+            if self.stream is None:
+                if self.root_dir is None:
+                    # For meta internal runs, we use the /logs directory by default
+                    # reference implementation
+                    # https://github.com/pytorch/pytorch/blob/5fe58ab5bd9e14cce3107150a9956a2ed40d2f79/torch/_logging/_internal.py#L1071
+                    TRACE_LOG_DIR = "/logs"
+                    should_set_root_dir = True
+                    if TORCH_INSTALLED:
+                        import torch.version as torch_version
+                        if (
+                            hasattr(torch_version, "git_version")
+                            and os.getenv("MAST_HPC_JOB_NAME") is None
+                        ):
+                            log.info(
+                                "TritonTraceHandler: disabled because not fbcode or conda on mast"
+                            )
+                            should_set_root_dir = False
+                        # TODO: change to tritonparse knob
+                        elif not torch._utils_internal.justknobs_check(
+                            "pytorch/trace:enable"
+                        ):
+                            log.info(
+                                "TritonTraceHandler: disabled because justknobs_check('pytorch/trace:enable') returned False"
+                            )
+                            should_set_root_dir = False
+                    else:
+                        if not os.path.exists(TRACE_LOG_DIR):
+                            log.info(
+                                "TritonTraceHandler: disabled because %s does not exist",
+                                TRACE_LOG_DIR,
+                            )
+                            should_set_root_dir = False
+                        elif not os.access(TRACE_LOG_DIR, os.W_OK):
+                            log.info(
+                                "TritonTraceHandler: disabled because %s is not writeable",
+                                TRACE_LOG_DIR,
+                            )
+                            should_set_root_dir = False
+                    if should_set_root_dir:
+                        self.root_dir = TRACE_LOG_DIR
+
+                # Create directory and file
+                if self.root_dir is not None:
+                    os.makedirs(self.root_dir, exist_ok=True)
+                    ranksuffix = ""
+                    if TORCH_INSTALLED:
+                        import torch.distributed as dist
+                        if dist.is_available() and dist.is_initialized():
+                            ranksuffix = f"rank_{dist.get_rank()}_"
+                    filename = f"{self.prefix}{ranksuffix}"
+                    self._ensure_stream_closed()
+
+                    self.stream = open(
+                        os.path.join(self.root_dir, f"{filename}.ndjson"),
+                        mode="a+",
+                    )
+                    log.debug("TritonTraceHandler: logging to %s",
+                              self.stream.name)
                 else:
-                    if not os.path.exists(TRACE_LOG_DIR):
-                        log.info(
-                            "TritonTraceHandler: disabled because %s does not exist",
-                            TRACE_LOG_DIR,
-                        )
-                        should_set_root_dir = False
-                    elif not os.access(TRACE_LOG_DIR, os.W_OK):
-                        log.info(
-                            "TritonTraceHandler: disabled because %s is not writeable",
-                            TRACE_LOG_DIR,
-                        )
-                        should_set_root_dir = False
-                if should_set_root_dir:
-                    self.root_dir = TRACE_LOG_DIR
+                    triton_trace_log.removeHandler(self)
+                    return
 
-            # Create directory and file
-            if self.root_dir is not None:
-                os.makedirs(self.root_dir, exist_ok=True)
-                ranksuffix = ""
-                if TORCH_INSTALLED:
-                    import torch.distributed as dist
-                    if dist.is_available() and dist.is_initialized():
-                        ranksuffix = f"rank_{dist.get_rank()}_"
-                filename = f"{self.prefix}{ranksuffix}"
-                self.stream = open(
-                    os.path.join(self.root_dir, f"{filename}.ndjson"),
-                    mode="a+",
-                )
-                log.debug("TritonTraceHandler: logging to %s",
-                          self.stream.name)
-            else:
-                triton_trace_log.removeHandler(self)
-                return
-
-        if self.stream:
-            formatted = self.format(record)
-            self.stream.write(formatted)
-            self.flush()
+            if self.stream:
+                formatted = self.format(record)
+                self.stream.write(formatted)
+                self.flush()
+        except Exception as e:
+            # record exception and ensure resources are released
+            log.error(f"Error in TritonTraceHandler.emit: {e}")
+            self._ensure_stream_closed()
+            self.handleError(record)  # call Handler's standard error handling
 
     def close(self):
         """Close the current file."""
@@ -220,12 +279,21 @@ class TritonTraceHandler(logging.StreamHandler):
         if self.stream is not None:
             self.close()
 
+    def _ensure_stream_closed(self):
+        """ensure stream is closed"""
+        if self.stream is not None:
+            try:
+                self.flush()
+            finally:
+                self.stream.close()
+                self.stream = None
+
 
 def trace_structured_triton(
     name: str,
-    metadata_fn: Callable[[], Dict[str, Any]] = dict,
+    metadata_fn: Optional[Callable[[], Dict[str, Any]]] = None,
     *,
-    payload_fn: Callable[[], Optional[Union[str, object]]] = lambda: None,
+    payload_fn: Optional[Callable[[], Optional[Union[str, object]]]] = None,
 ):
     """
     Record structured trace information for Triton kernel compilation.
@@ -258,6 +326,11 @@ def trace_structured_triton(
         TRITON_TRACE_HANDLER.close()
         TRITON_TRACE_HANDLER.stream = None
 
+    if metadata_fn is None:
+        def metadata_fn(): return {}
+    if payload_fn is None:
+        def payload_fn(): return None
+
     metadata_dict: Dict[str, Any] = {"event_type": name}
     metadata_dict["pid"] = os.getpid()
     custom_metadata = metadata_fn()
@@ -266,10 +339,12 @@ def trace_structured_triton(
 
     metadata_dict["stack"] = get_stack_trace()
 
-    # Log the record
+    # Log the record using our custom LogRecord
     payload = payload_fn()
-    triton_trace_log.debug(
-        "", extra={"metadata": metadata_dict, "payload": payload})
+    # Use a custom factory to create the record with simplified parameters
+    record = create_triton_log_record(metadata=metadata_dict, payload=payload)
+    # Log the custom record
+    triton_trace_log.handle(record)
 
 
 def extract_python_source_info(trace_data: Dict[str, Any], source: Any):
@@ -335,7 +410,7 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
 
 
 def maybe_trace_triton(
-    src: Union[Any, Any],
+    src: Union[ASTSource, IRSource],
     metadata: Dict[str, Any],
     metadata_group: Dict[str, Any],
     times: Any,
@@ -419,6 +494,7 @@ def init(trace_folder: Optional[str] = None):
         trace_folder (Optional[str]): The folder to store the trace files.
     """
     global triton_trace_folder
+    maybe_enable_debug_logging()
     if triton_trace_folder is not None and trace_folder is not None:
         log.info("Conflict settings: TRITON_TRACE is already set to %s, we will use provided trace_folder(%s) instead.",
                  triton_trace_folder, trace_folder)

@@ -1,5 +1,9 @@
 """
 Simple Triton kernel for tensor addition.
+Test Plan:
+```
+TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python tests/test_add.py
+```
 """
 
 import torch
@@ -55,6 +59,7 @@ def test_tensor_add():
     # Test torch.compile
     compiled_add = torch.compile(simple_add)
     c_compiled = compiled_add(a, b)
+    c_compiled.sum()
     print("Torch compiled function executed successfully")
 
 
