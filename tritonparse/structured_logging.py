@@ -3,7 +3,7 @@ import inspect
 import logging
 import os
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 from triton.compiler import ASTSource, IRSource
 
@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for file content extraction
 
-
+triton_trace_log = logging.getLogger("tritonparse")
 TORCH_INSTALLED = True
 if importlib.util.find_spec("torch") is not None:
     TORCH_INSTALLED = True
@@ -22,6 +22,84 @@ else:
 
 # enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
+
+
+class TritonLogRecord(logging.LogRecord):
+    """
+    Custom LogRecord class for structured logging of Triton operations.
+
+    Extends the standard LogRecord with additional attributes for storing
+    structured metadata and payload information.
+    """
+
+    def __init__(
+        self,
+        name,
+        level,
+        pathname,
+        lineno,
+        msg,
+        args,
+        exc_info,
+        metadata=None,
+        payload=None,
+        **kwargs,
+    ):
+        super().__init__(name, level, pathname, lineno, msg, args, exc_info, **kwargs)
+        self.metadata: Dict[str, Any] = metadata or {}
+        self.payload: Optional[Union[str, Dict[str, Any], list]] = payload
+
+
+def create_triton_log_record(
+    name=None,
+    level=logging.DEBUG,
+    pathname=None,
+    lineno=None,
+    msg="",
+    args=(),
+    exc_info=None,
+    metadata=None,
+    payload=None,
+    **kwargs,
+):
+    """
+    Factory method to create TritonLogRecord instances with sensible defaults.
+
+    Args:
+        name (str, optional): Logger name. Defaults to triton_trace_log.name.
+        level (int, optional): Log level. Defaults to DEBUG.
+        pathname (str, optional): Path to the file where the log call was made. Defaults to current file.
+        lineno (int, optional): Line number where the log call was made. Defaults to current line.
+        msg (str, optional): Log message. Defaults to empty string.
+        args (tuple, optional): Arguments to interpolate into the message. Defaults to empty tuple.
+        exc_info (optional): Exception information. Defaults to None.
+        metadata (Dict[str, Any], optional): Structured metadata for the log record. Defaults to empty dict.
+        payload (optional): Payload data. Defaults to None.
+        **kwargs: Additional keyword arguments for LogRecord
+
+    Returns:
+        TritonLogRecord: A custom log record with structured data
+    """
+    if pathname is None:
+        pathname = __file__
+    if lineno is None:
+        lineno = inspect.currentframe().f_back.f_lineno
+    if name is None:
+        name = triton_trace_log.name
+
+    record = TritonLogRecord(
+        name,
+        level,
+        pathname,
+        lineno,
+        msg,
+        args,
+        exc_info,
+        metadata=metadata,
+        payload=payload,
+        **kwargs,
+    )
+    return record
 
 
 def convert(obj):
