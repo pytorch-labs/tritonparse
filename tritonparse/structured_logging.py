@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from triton.compiler import ASTSource, IRSource
 
@@ -15,10 +15,12 @@ TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for file content extraction
 # Enable ndjson output. json format is only for debugging purpose.
 TRITONPARSE_NDJSON = os.getenv("TRITONPARSE_NDJSON", "1") in ["1", "true", "True"]
-triton_trace_log = logging.getLogger("tritonparse")
-# enable debug logging for tritonparse itself
+triton_trace_log = logging.getLogger("tritonparse_trace")
+# The folder to store the triton trace log.
+triton_trace_folder = os.environ.get("TRITON_TRACE", None)
+# Enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
-TORCH_INSTALLED = True
+TRITON_TRACE_HANDLER = None
 if importlib.util.find_spec("torch") is not None:
     TORCH_INSTALLED = True
     import torch
@@ -394,3 +396,67 @@ class TritonTraceHandler(logging.StreamHandler):
             finally:
                 self.stream.close()
                 self.stream = None
+
+
+def _init_logs():
+    """
+    Initialize the logging system for Triton tracing.
+
+    Sets up the global trace handler and configures the logger with appropriate
+    formatter and log level.
+    """
+    global TRITON_TRACE_HANDLER
+    global triton_trace_folder
+    if TRITON_TRACE_HANDLER is None:
+        TRITON_TRACE_HANDLER = TritonTraceHandler(triton_trace_folder)
+        triton_trace_log.setLevel(logging.DEBUG)
+        TRITON_TRACE_HANDLER.setFormatter(TritonJsonFormatter())
+        triton_trace_log.addHandler(TRITON_TRACE_HANDLER)
+
+
+def trace_structured_triton(
+    name: str,
+    metadata_fn: Optional[Callable[[], Dict[str, Any]]] = None,
+    *,
+    payload_fn: Optional[Callable[[], Optional[Union[str, object]]]] = None,
+):
+    """
+    Record structured trace information for Triton kernel compilation.
+
+    This function is the main entry point for logging structured trace events
+    in the Triton system. It handles initialization of the logging system if needed,
+    creates new log files, and formats the trace data with metadata
+    and payload information.
+
+    Args:
+        name (str): Name of the trace event (e.g., "compilation", "execution")
+        metadata_fn (Callable): Function that returns a dictionary of metadata to include
+                               in the trace record
+        payload_fn (Callable): Function that returns the payload data (can be a string,
+                              dictionary, or other serializable object)
+    """
+
+    if metadata_fn is None:
+
+        def metadata_fn():
+            return {}
+
+    if payload_fn is None:
+
+        def payload_fn():
+            return None
+
+    metadata_dict: Dict[str, Any] = {"event_type": name}
+    metadata_dict["pid"] = os.getpid()
+    custom_metadata = metadata_fn()
+    if custom_metadata:
+        metadata_dict.update(custom_metadata)
+
+    metadata_dict["stack"] = get_stack_trace()
+
+    # Log the record using our custom LogRecord
+    payload = payload_fn()
+    # Use a custom factory to create the record with simplified parameters
+    record = create_triton_log_record(metadata=metadata_dict, payload=payload)
+    # Log the custom record
+    triton_trace_log.handle(record)
