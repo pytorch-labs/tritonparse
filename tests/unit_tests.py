@@ -7,7 +7,7 @@ import triton.language as tl
 from triton.compiler import ASTSource, IRSource
 from triton.knobs import CompileTimes
 
-from tritonparse.structured_logging import extract_python_source_info
+from .tritonparse.structured_logging.py import extract_python_source_info
 
 
 def test_extract_python_source_info():

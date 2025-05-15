@@ -8,6 +8,9 @@ from triton.compiler import ASTSource, IRSource
 
 log = logging.getLogger(__name__)
 
+TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for file content extraction
+
 
 TORCH_INSTALLED = True
 if importlib.util.find_spec("torch") is not None:
@@ -92,3 +95,36 @@ def extract_python_source_info(
         "end_line": end_line_number,
         "code": inspect.getsource(target_fn),
     }
+
+
+def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, str]):
+    """
+    Extract file content from metadata_group and add it to trace_data.
+
+    Args:
+        trace_data (Dict): Dictionary to store extracted information
+        metadata_group (Dict): Dictionary mapping filenames to file paths
+    """
+    for ir_filename, file_path in metadata_group.items():
+        # Add file path to trace data
+        trace_data["file_path"][ir_filename] = file_path
+
+        # Check if this is a text file we can read
+        if any(ir_filename.endswith(ext) for ext in TEXT_FILE_EXTENSIONS):
+            try:
+                # Check file size before reading to avoid memory issues
+                file_size = os.path.getsize(file_path)
+                if file_size > MAX_FILE_SIZE:
+                    trace_data["file_content"][ir_filename] = (
+                        f"<file too large: {file_size} bytes>"
+                    )
+                    continue
+
+                with open(file_path, "r") as f:
+                    trace_data["file_content"][ir_filename] = f.read()
+            except (UnicodeDecodeError, OSError) as e:
+                # add more specific error type
+                trace_data["file_content"][ir_filename] = (
+                    f"<error reading file: {str(e)}>"
+                )
+                log.debug(f"Error reading file {file_path}: {e}")
