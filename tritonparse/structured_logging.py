@@ -1,5 +1,6 @@
 import importlib
 import inspect
+import json
 import logging
 import os
 from dataclasses import asdict, is_dataclass
@@ -11,7 +12,8 @@ log = logging.getLogger(__name__)
 
 TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for file content extraction
-
+# Enable ndjson output. json format is only for debugging purpose.
+TRITONPARSE_NDJSON = os.getenv("TRITONPARSE_NDJSON", "1") in ["1", "true", "True"]
 triton_trace_log = logging.getLogger("tritonparse")
 TORCH_INSTALLED = True
 if importlib.util.find_spec("torch") is not None:
@@ -231,3 +233,29 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                     f"<error reading file: {str(e)}>"
                 )
                 log.debug(f"Error reading file {file_path}: {e}")
+
+
+class TritonJsonFormatter(logging.Formatter):
+    """
+    Format log records as JSON for Triton compilation tracing.
+
+    This formatter converts log records with metadata and payload into NDJSON format,
+    suitable for structured logging and later analysis. It handles special attributes
+    added by the tritonparse, such as metadata dictionaries and payload data.
+    """
+
+    def format(self, record: logging.LogRecord):
+        log_entry = record.metadata
+        payload = record.payload
+
+        log_entry["timestamp"] = self.formatTime(record, "%Y-%m-%dT%H:%M:%S.%fZ")
+        if payload is not None:
+            log_entry["payload"] = json.loads(payload)
+        clean_log_entry = convert(log_entry)
+        if not TRITONPARSE_NDJSON:
+            log.info("TritonJsonFormatter: using JSON format")
+            return json.dumps(clean_log_entry, indent=2)
+        else:
+            log.info("TritonJsonFormatter: using NDJSON format")
+            # NDJSON format requires a newline at the end of each line
+            return json.dumps(clean_log_entry, separators=(",", ":")) + "\n"
