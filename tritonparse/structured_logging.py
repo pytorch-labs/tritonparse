@@ -1,6 +1,10 @@
 import importlib
+import inspect
 import logging
 import os
+from typing import Any, Dict, Union
+
+from triton.compiler import ASTSource, IRSource
 
 log = logging.getLogger(__name__)
 
@@ -57,3 +61,34 @@ def get_stack_trace(skip=1):
             }
         )
     return frames
+
+
+def extract_python_source_info(
+    trace_data: Dict[str, Any], source: Union[ASTSource, IRSource]
+):
+    """
+    Extract Python source code information from the source object and add it to trace_data.
+
+    This function uses Python's inspect module to extract source code information
+    from the provided source object (typically an ASTSource or IRSource instance).
+    It adds file path, line numbers, and the actual source code to the trace_data.
+
+    Args:
+        trace_data (Dict[str, Any]): Dictionary to store extracted information
+        source (Union[ASTSource, IRSource]): Source object containing kernel function information
+    """
+    # @TODO: add support for IRSource
+    if isinstance(source, IRSource):
+        return
+    # Get the original Python source code for the kernel
+    target_fn = source.fn.fn
+    python_source_file = inspect.getfile(target_fn)
+    source_lines, start_line_number = inspect.getsourcelines(target_fn)
+    end_line_number = start_line_number + len(source_lines)
+
+    trace_data["python_source"] = {
+        "file_path": python_source_file,
+        "start_line": start_line_number,
+        "end_line": end_line_number,
+        "code": inspect.getsource(target_fn),
+    }
