@@ -1,3 +1,4 @@
+import atexit
 import importlib
 import inspect
 import json
@@ -15,15 +16,15 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for file content extraction
 # Enable ndjson output. json format is only for debugging purpose.
 TRITONPARSE_NDJSON = os.getenv("TRITONPARSE_NDJSON", "1") in ["1", "true", "True"]
 triton_trace_log = logging.getLogger("tritonparse")
+# enable debug logging for tritonparse itself
+TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
 TORCH_INSTALLED = True
 if importlib.util.find_spec("torch") is not None:
     TORCH_INSTALLED = True
+    import torch
     from torch.utils._traceback import CapturedTraceback
 else:
     TORCH_INSTALLED = False
-
-# enable debug logging for tritonparse itself
-TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
 
 
 class TritonLogRecord(logging.LogRecord):
@@ -259,3 +260,137 @@ class TritonJsonFormatter(logging.Formatter):
             log.info("TritonJsonFormatter: using NDJSON format")
             # NDJSON format requires a newline at the end of each line
             return json.dumps(clean_log_entry, separators=(",", ":")) + "\n"
+
+
+class TritonTraceHandler(logging.StreamHandler):
+    """
+    A handler for Triton compilation tracing that outputs NDJSON files.
+
+    This handler creates and manages log files for Triton kernel compilation traces.
+    It supports creating new files for different compilation events and handles
+    proper cleanup of file resources. When running in a distributed environment,
+    it automatically adds rank information to filenames.
+    """
+
+    def __init__(
+        self, root_dir: Optional[str] = None, prefix="dedicated_log_triton_trace_"
+    ):
+        logging.Handler.__init__(self)
+        self.root_dir = root_dir
+        self.prefix = prefix
+        self.stream = None
+        self.first_record = True
+        # If the program is unexpected terminated, atexit can ensure  file resources are properly closed and released.
+        # it is because we use `self.stream` to keep the opened file stream, if the program is interrupted by some errors, the stream may not be closed.
+        atexit.register(self._cleanup)
+
+    def get_root_dir(self):
+        # For meta internal runs, we use the /logs directory by default
+        # reference implementation
+        # https://github.com/pytorch/pytorch/blob/5fe58ab5bd9e14cce3107150a9956a2ed40d2f79/torch/_logging/_internal.py#L1071
+        if self.root_dir:
+            return self.root_dir
+        TRACE_LOG_DIR = "/logs"
+        should_set_root_dir = True
+        if TORCH_INSTALLED:
+            import torch.version as torch_version
+
+            if (
+                hasattr(torch_version, "git_version")
+                and os.getenv("MAST_HPC_JOB_NAME") is None
+            ):
+                log.info(
+                    "TritonTraceHandler: disabled because not fbcode or conda on mast"
+                )
+                should_set_root_dir = False
+            # TODO: change to tritonparse knob
+            elif not torch._utils_internal.justknobs_check("pytorch/trace:enable"):
+                log.info(
+                    "TritonTraceHandler: disabled because justknobs_check('pytorch/trace:enable') returned False"
+                )
+                should_set_root_dir = False
+        else:
+            if not os.path.exists(TRACE_LOG_DIR):
+                log.info(
+                    "TritonTraceHandler: disabled because %s does not exist",
+                    TRACE_LOG_DIR,
+                )
+                should_set_root_dir = False
+            elif not os.access(TRACE_LOG_DIR, os.W_OK):
+                log.info(
+                    "TritonTraceHandler: disabled because %s is not writeable",
+                    TRACE_LOG_DIR,
+                )
+                should_set_root_dir = False
+        if should_set_root_dir:
+            self.root_dir = TRACE_LOG_DIR
+        return self.root_dir
+
+    def emit(self, record):
+        # reference implementation
+        # https://github.com/pytorch/pytorch/blob/5fe58ab5bd9e14cce3107150a9956a2ed40d2f79/torch/_logging/_internal.py#L1071
+        try:
+            if self.stream is None:
+                root_dir = self.get_root_dir()
+                if root_dir is not None:
+                    os.makedirs(root_dir, exist_ok=True)
+                    ranksuffix = ""
+                    if TORCH_INSTALLED:
+                        import torch.distributed as dist
+
+                        if dist.is_available() and dist.is_initialized():
+                            ranksuffix = f"rank_{dist.get_rank()}_"
+                    filename = f"{self.prefix}{ranksuffix}"
+                    self._ensure_stream_closed()
+                    log_file_name = os.path.abspath(
+                        os.path.join(root_dir, f"{filename}.ndjson")
+                    )
+                    self.stream = open(
+                        log_file_name,
+                        mode="a+",
+                    )
+                    log.debug("TritonTraceHandler: logging to %s", log_file_name)
+                else:
+                    triton_trace_log.removeHandler(self)
+                    return
+
+            if self.stream:
+                formatted = self.format(record)
+                self.stream.write(formatted)
+                self.flush()
+        except Exception as e:
+            # record exception and ensure resources are released
+            log.error(f"Error in TritonTraceHandler.emit: {e}")
+            self._ensure_stream_closed()
+            self.handleError(record)  # call Handler's standard error handling
+
+    def close(self):
+        """Close the current file."""
+        self.acquire()
+        try:
+            try:
+                if self.stream:
+                    try:
+                        self.flush()
+                    finally:
+                        self.stream.close()
+                        self.stream = None
+            finally:
+                # Solution adopted from PyTorch PR #120289
+                logging.StreamHandler.close(self)
+        finally:
+            self.release()
+
+    def _cleanup(self):
+        """Ensure proper cleanup on program exit"""
+        if self.stream is not None:
+            self.close()
+
+    def _ensure_stream_closed(self):
+        """ensure stream is closed"""
+        if self.stream is not None:
+            try:
+                self.flush()
+            finally:
+                self.stream.close()
+                self.stream = None
