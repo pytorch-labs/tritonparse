@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, Union
 
 import torch
@@ -7,7 +8,7 @@ import triton.language as tl
 from triton.compiler import ASTSource, IRSource
 from triton.knobs import CompileTimes
 
-from .tritonparse.structured_logging.py import extract_python_source_info
+from ..tritonparse.structured_logging import convert, extract_python_source_info
 
 
 def test_extract_python_source_info():
@@ -58,3 +59,51 @@ def test_extract_python_source_info():
     tensor_add(a, b)
     assert "python_source" in trace_data
     assert "file_path" in trace_data["python_source"]
+
+
+def test_convert():
+    # Test with primitive types
+    assert convert(42) == 42
+    assert convert("hello") == "hello"
+    assert convert(3.14) == 3.14
+    assert convert(None) is None
+    assert convert(True) is True
+
+    # Test with a dictionary
+    test_dict = {"a": 1, "b": "string", "c": 3.14}
+    assert convert(test_dict) == test_dict
+
+    # Test with a list
+    test_list = [1, "string", 3.14]
+    assert convert(test_list) == test_list
+
+    # Test with a dataclass
+    @dataclass
+    class TestDataClass:
+        x: int
+        y: str
+        z: float
+
+    test_dataclass = TestDataClass(x=42, y="hello", z=3.14)
+    expected_dict = {"x": 42, "y": "hello", "z": 3.14}
+    assert convert(test_dataclass) == expected_dict
+
+    # Test with nested structures
+    @dataclass
+    class NestedDataClass:
+        name: str
+        value: int
+
+    nested_structure = {
+        "simple_key": "simple_value",
+        "list_key": [1, 2, NestedDataClass(name="test", value=42)],
+        "dict_key": {"nested_key": NestedDataClass(name="nested", value=100)},
+    }
+
+    expected_nested = {
+        "simple_key": "simple_value",
+        "list_key": [1, 2, {"name": "test", "value": 42}],
+        "dict_key": {"nested_key": {"name": "nested", "value": 100}},
+    }
+
+    assert convert(nested_structure) == expected_nested

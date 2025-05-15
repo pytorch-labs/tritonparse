@@ -2,6 +2,7 @@ import importlib
 import inspect
 import logging
 import os
+from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Union
 
 from triton.compiler import ASTSource, IRSource
@@ -21,6 +22,30 @@ else:
 
 # enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
+
+
+def convert(obj):
+    """
+    Recursively converts dataclasses, dictionaries, and lists to their serializable forms.
+
+    Args:
+        obj: The object to convert, which can be a dataclass instance, dictionary, list, or any other type
+
+    Returns:
+        A serializable version of the input object where dataclasses are converted to dictionaries
+    """
+    if is_dataclass(obj):
+        return convert(
+            asdict(obj)
+        )  # Convert dataclass to dict and then process that dict
+    elif isinstance(obj, dict):
+        return {
+            k: convert(v) for k, v in obj.items()
+        }  # Process each key-value pair recursively
+    elif isinstance(obj, list):
+        return [convert(i) for i in obj]  # Process each list item recursively
+    else:
+        return obj  # Return primitive types as-is
 
 
 def maybe_enable_debug_logging():
