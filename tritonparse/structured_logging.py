@@ -4,9 +4,12 @@ import inspect
 import json
 import logging
 import os
+from collections import defaultdict
 from dataclasses import asdict, is_dataclass
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
+import triton
 from triton.compiler import ASTSource, IRSource
 
 log = logging.getLogger(__name__)
@@ -460,3 +463,101 @@ def trace_structured_triton(
     record = create_triton_log_record(metadata=metadata_dict, payload=payload)
     # Log the custom record
     triton_trace_log.handle(record)
+
+
+def maybe_trace_triton(
+    src: Union[ASTSource, IRSource],
+    metadata: Dict[str, Any],
+    metadata_group: Dict[str, Any],
+    times: Any,
+    event_type: str = "compilation",
+    cache_hit: bool = False,
+):
+    """
+    Collect and trace Triton kernel compilation information for debugging and profiling.
+
+    This function gathers metadata, IR files, and source code information about a Triton
+    kernel compilation, then logs it through the tracing system if tracing is enabled.
+    It collects information from multiple sources:
+    1. JSON metadata file (if provided)
+    2. PyTorch compilation context (if available)
+    3. IR and other compilation artifact files
+    4. Python source code of the kernel function
+
+    This function is designed to be used as a CompilationListener in triton.knobs.compilation.listener,
+    which now accepts a list of listeners.
+
+    Args:
+        src (Union[ASTSource, IRSource]): Source object containing kernel information
+        metadata (Dict[str, Any]): Dictionary containing metadata for the compilation
+        metadata_group (Dict[str, Any]): Dictionary mapping filenames to file paths for all compilation artifacts
+        times (CompileTimes): Object containing timing information for the compilation
+        event_type (str): Type of event being traced (default: "compilation")
+        cache_hit (bool): Whether the compilation was a cache hit (default: False)
+
+    Returns:
+        Dict[str, Any]: Dictionary containing all collected trace data, even if tracing is disabled
+    """
+    # Initialize a dictionary with defaultdict to avoid key errors
+    trace_data = defaultdict(dict)
+    # Add cache_hit to metadata
+    trace_data["metadata"]["cache_hit"] = cache_hit
+    if not metadata:
+        metadata_path = next(
+            (Path(p) for c, p in metadata_group.items() if c.endswith(".json"))
+        )
+        with open(metadata_path, "r") as f:
+            metadata = json.load(f)
+            trace_data["metadata"].update(metadata)
+    else:
+        trace_data["metadata"].update(metadata)
+    # Handle torch._guards which might not be recognized by type checker
+    if TORCH_INSTALLED:
+        trace_id = torch._guards.CompileContext.current_trace_id()  # type: ignore
+    else:
+        trace_id = None
+    cid = trace_id.compile_id if trace_id else None
+    if cid is not None:
+        for attr_name in ["compiled_autograd_id", "frame_id", "frame_compile_id"]:
+            attr_value = getattr(cid, attr_name, None)
+            if attr_value is not None:
+                trace_data["pt_info"][attr_name] = attr_value
+    if trace_id:
+        trace_data["pt_info"]["attempt"] = trace_id.attempt
+    # Extract content from all IR and other files in the metadata group
+    extract_file_content(trace_data, metadata_group)
+
+    # Extract Python source code information if available
+    extract_python_source_info(trace_data, src)
+
+    # Log the collected information through the tracing system
+    trace_structured_triton(
+        event_type,
+        payload_fn=lambda: json.dumps(convert(trace_data)),
+    )
+
+    return trace_data
+
+
+def init(trace_folder: Optional[str] = None):
+    """
+    Initialize the structured logging system for Triton compilation.
+
+    This function sets up the logging system for Triton kernel compilation traces,
+    including the TRITON_TRACE environment variable and the TRITON_TRACE_HANDLER.
+
+    Args:
+        trace_folder (Optional[str]): The folder to store the trace files.
+    """
+    global triton_trace_folder
+    maybe_enable_debug_logging()
+    if triton_trace_folder is not None and trace_folder is not None:
+        log.info(
+            "Conflict settings: TRITON_TRACE is already set to %s, we will use provided trace_folder(%s) instead.",
+            triton_trace_folder,
+            trace_folder,
+        )
+    if trace_folder is not None:
+        triton_trace_folder = trace_folder
+    _init_logs()
+    triton.knobs.compilation.listener = maybe_trace_triton
