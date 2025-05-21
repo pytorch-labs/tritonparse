@@ -15,6 +15,14 @@ import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
 SyntaxHighlighter.registerLanguage('llvm', llvm);
 SyntaxHighlighter.registerLanguage('c', c);
 SyntaxHighlighter.registerLanguage('python', python);
+/**
+ * Thresholds for file size optimization:
+ * - LARGE_FILE_THRESHOLD: Files larger than this will use virtualized rendering with syntax highlighting
+ * - EXTREMELY_LARGE_FILE_THRESHOLD: Files larger than this will use basic rendering without syntax highlighting
+ */
+
+const LARGE_FILE_THRESHOLD = 10000000;
+const EXTREMELY_LARGE_FILE_THRESHOLD = 10000000;
 
 /**
  * Props for the CodeViewer component
@@ -162,6 +170,187 @@ const BasicCodeViewer: React.FC<CodeViewerProps> = ({
   );
 };
 
+/**
+ * Optimized code viewer for large files
+ */
+const LargeFileViewer: React.FC<CodeViewerProps> = ({
+  code,
+  language = "plaintext",
+  height = "100%",
+  theme = "light",
+  fontSize = 14,
+  highlightedLines = [],
+  onLineClick,
+  viewerId,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 });
+  const lines = splitIntoLines(code);
+  const lineHeight = Math.ceil(fontSize * 1.5); // Approximate line height based on font size
+
+  // Use useCallback to memoize the scroll handler
+  const updateVisibleLines = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const scrollTop = container.scrollTop;
+    const clientHeight = container.clientHeight;
+
+    // Add buffer before and after visible area for smoother scrolling
+    const visibleLines = Math.ceil(clientHeight / lineHeight);
+    const bufferLines = visibleLines;
+
+    const startLine = Math.max(0, Math.floor(scrollTop / lineHeight) - bufferLines);
+    const endLine = Math.min(
+      lines.length - 1,
+      Math.ceil((scrollTop + clientHeight) / lineHeight) + bufferLines
+    );
+
+    setVisibleRange(prev => {
+      // Only update if the range actually changed
+      if (prev.start !== startLine || prev.end !== endLine) {
+        return { start: startLine, end: endLine };
+      }
+      return prev;
+    });
+  }, [lines.length, lineHeight]);
+
+  // Create a debounced version of the update function for scroll events
+  const debouncedUpdate = useRef(debounce(updateVisibleLines, 10)).current;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Initial update without debounce
+    updateVisibleLines();
+
+    // Add scroll listener with debounce for better performance
+    container.addEventListener('scroll', debouncedUpdate);
+
+    // Cleanup
+    return () => {
+      container.removeEventListener('scroll', debouncedUpdate);
+    };
+  }, [updateVisibleLines, debouncedUpdate]);
+
+  // Function to scroll to a specific line
+  const scrollToLine = useCallback((lineNumber: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Calculate position to scroll to
+    const scrollPosition = (lineNumber - 1) * lineHeight;
+
+    // Scroll with smooth behavior
+    container.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth'
+    });
+  }, [lineHeight]);
+
+  // Enhanced line click handler that processes source mapping
+  const handleLineClick = useCallback((lineNumber: number) => {
+
+    if (onLineClick) {
+      onLineClick(lineNumber);
+    }
+  }, [onLineClick, viewerId]);
+
+  // Map the language to the appropriate highlighter language
+  const highlighterLanguage = mapLanguageToHighlighter(language);
+
+  // Only render visible lines plus buffer
+  const visibleCode = lines.slice(visibleRange.start, visibleRange.end + 1).join('\n');
+
+  // Calculate offsets for line numbers and highlighting
+  const lineNumberOffset = visibleRange.start + 1;
+
+  // Check if we need to scroll to a highlighted line that's outside the visible range
+  useEffect(() => {
+    if (highlightedLines.length > 0) {
+      const firstHighlight = highlightedLines[0];
+
+
+      // Check if the highlighted line is outside the current visible range
+      if (firstHighlight < visibleRange.start + 5 || firstHighlight > visibleRange.end - 5) {
+
+        // Scroll to show the highlighted line
+        scrollToLine(firstHighlight);
+      }
+    }
+  }, [highlightedLines, visibleRange, scrollToLine]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        height,
+        overflowY: "auto",
+        fontSize: `${fontSize}px`,
+        position: "relative"
+      }}
+      className={`code-viewer ${highlightedLines.length > 0 ? 'has-highlights' : ''}`}
+      data-viewer-id={viewerId}
+      data-highlighted-lines={highlightedLines.join(',')}
+    >
+      {/* Container with full height to enable proper scrolling */}
+      <div style={{ height: `${lines.length * lineHeight}px`, position: "relative" }}>
+        {/* Only render the visible portion */}
+        <div style={{
+          position: "absolute",
+          top: `${visibleRange.start * lineHeight}px`,
+          width: "100%"
+        }}>
+          <SyntaxHighlighter
+            language={highlighterLanguage}
+            style={theme === "light" ? oneLight : oneDark}
+            showLineNumbers
+            startingLineNumber={lineNumberOffset}
+            wrapLines
+            lineProps={(lineNumber) => {
+              // Adjust line number based on visible range
+              const actualLine = lineNumber + visibleRange.start;
+
+              // Create styles for the line
+              const style: React.CSSProperties = {
+                display: "block",
+                cursor: onLineClick ? "pointer" : "text",
+              };
+
+              // Apply background color if this line should be highlighted
+              const isHighlighted = highlightedLines.includes(actualLine);
+              if (isHighlighted) {
+                // Use a more vibrant highlight color with better contrast
+                style.backgroundColor = theme === "light"
+                  ? "rgba(255, 215, 0, 0.4)" // More golden yellow for light theme
+                  : "rgba(255, 215, 0, 0.3)"; // Similar but slightly dimmer for dark theme
+                style.borderLeft = "3px solid orange"; // Add left border for better visibility
+                style.paddingLeft = "6px"; // Add some padding to offset the border
+
+              }
+
+              return {
+                style,
+                onClick: () => handleLineClick(actualLine),
+                'data-line-number': actualLine,
+                className: isHighlighted ? 'highlighted-line' : '',
+              };
+            }}
+            customStyle={{
+              margin: 0,
+              fontSize: "inherit",
+              backgroundColor: theme === "light" ? "#fff" : "#1E1E1E",
+              padding: "0.5em",
+            }}
+          >
+            {visibleCode}
+          </SyntaxHighlighter>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Standard code viewer for smaller files
@@ -290,8 +479,14 @@ const CodeViewer: React.FC<CodeViewerProps> = (props) => {
     );
   }
 
-  // Use standard viewer for smaller files
-  return <StandardCodeViewer {...props} />;
+  // Use optimized viewer for large files
+  if (props.code.length > EXTREMELY_LARGE_FILE_THRESHOLD) {
+    return <BasicCodeViewer {...props} />;
+  } else if (props.code.length > LARGE_FILE_THRESHOLD) {
+    return <LargeFileViewer {...props} />;
+  } else {
+    return <StandardCodeViewer {...props} />;
+  }
 };
 
 // Use React.memo to prevent unnecessary re-renders
