@@ -268,6 +268,44 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
         [handlePanelLineClick]
     );
 
+    /**
+     * Handles clicking on a line in the Python source panel
+     * Maps Python line to IR lines in both panels
+     * @param lineNumber - The line number that was clicked in the Python panel
+     */
+    const handlePythonLineClick = useCallback(
+        (lineNumber: number) => {
+            setPythonHighlightedLines([lineNumber]);
+
+            // compute the actual line number in the Python source code
+            // Notice: lineNumber is 1-based, but py_start_line is 0-based
+            // pythonLineNumber is 0-based
+            const pythonLineNumber = lineNumber + py_start_line - 1 ;
+
+            const highlightLines = (title: string, panel: 'left' | 'right') => {
+                if (pythonMapping && pythonMapping[pythonLineNumber]) {
+                    // get ir_type from title
+                    const irType = getIRType(title);
+                    const irLines = pythonMapping[pythonLineNumber][`${irType}_lines` as keyof SourceMapping] as number[] || [];
+
+                    if (panel === 'left') {
+                        // Ensure all values are numbers
+                        setLeftHighlightedLines(irLines.map(Number));
+                    } else {
+                        // Ensure all values are numbers
+                        setRightHighlightedLines(irLines.map(Number));
+                    }
+                } else {
+                    panel === 'left' ? setLeftHighlightedLines([]) : setRightHighlightedLines([]);
+                }
+            };
+
+            highlightLines(leftPanel_data.title, 'left');
+            highlightLines(rightPanel_data.title, 'right');
+
+        },
+        [pythonMapping, leftHighlightedLines, rightHighlightedLines, pythonHighlightedLines]
+    );
 
 
     /**
@@ -348,7 +386,23 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
                         otherViewerId="left-panel"
                     />
                 </Panel>
-
+                {/* Python source panel (only shown if Python source is available) */}
+                {showPythonSource && (
+                    <>
+                        <PanelResizeHandle className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors" />
+                        <Panel defaultSize={33} minSize={20}>
+                            <CodePanel
+                                title="Python Source"
+                                displayLanguage={getDisplayLanguage("python")}
+                                code={py_code}
+                                language="python"
+                                highlightedLines={pythonHighlightedLines}
+                                onLineClick={handlePythonLineClick}
+                                viewerId="python-panel"
+                            />
+                        </Panel>
+                    </>
+                )}
             </PanelGroup>
         </div>
     );
