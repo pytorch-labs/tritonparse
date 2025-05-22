@@ -41,6 +41,39 @@ export interface IRFile {
     source_mapping?: Record<string, SourceMapping>;
 }
 
+
+/**
+ * Represents a stack trace entry with line, function name, file info
+ */
+export interface StackEntry {
+    line: number;
+    name: string;
+    filename: string | number | [string, number]; // Can be index, array [filepath, index], or filepath string
+    loc: string;
+}
+
+/**
+ * Represents kernel compilation metadata
+ */
+export interface KernelMetadata {
+    hash?: string;
+    target?: {
+        backend?: string;
+        arch?: number;
+        warp_size?: number;
+    };
+    num_warps?: number;
+    num_ctas?: number;
+    num_stages?: number;
+    maxnreg?: number | null;
+    cluster_dims?: number[];
+    ptx_version?: number | null;
+    enable_fp_fusion?: boolean;
+    launch_cooperative_grid?: boolean;
+    supported_fp8_dtypes?: string[];
+    [key: string]: any; // For other metadata properties
+}
+
 /**
  * Python source code information
  */
@@ -49,4 +82,18 @@ export interface PythonSourceCodeInfo {
     start_line: number;
     end_line?: number; // End line number (inclusive)
     code?: string;
+}
+
+/**
+ * Processed kernel data structure for rendering in the UI
+ */
+export interface ProcessedKernel {
+    name: string; // Inferred from filename
+    sourceFiles: string[]; // All related source files
+    stack: StackEntry[];
+    irFiles: Record<string, string>; // IR file contents
+    filePaths: Record<string, string>; // IR file paths
+    sourceMappings?: Record<string, Record<string, SourceMapping>>; // Source mappings for each IR file
+    pythonSourceInfo?: PythonSourceCodeInfo; // Python source code information
+    metadata?: KernelMetadata; // Compilation metadata
 }
