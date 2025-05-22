@@ -41,6 +41,16 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
     showPythonSource = false,
     pythonMapping,
 }) => {
+    // Track which lines are highlighted in each panel
+    const [leftHighlightedLines, setLeftHighlightedLines] = useState<number[]>(
+        []
+    );
+    const [rightHighlightedLines, setRightHighlightedLines] = useState<
+        number[]
+    >([]);
+    const [pythonHighlightedLines, setPythonHighlightedLines] = useState<
+        number[]
+    >([]);
     /**
      * Process panel properties to get content, source mapping and display language
      * @param panel Panel properties
@@ -181,13 +191,163 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
         [leftPanel_data.content, rightPanel_data.content]
     );
 
+    /**
+     * Handles clicking on a line in either the left or right code panel
+     * Highlights the line in the source panel and attempts to find and
+     * highlight corresponding lines in the target panel and Python panel
+     * @param lineNumber - The line number that was clicked
+     * @param panel - Which panel was clicked ('left' or 'right')
+     */
+    const handlePanelLineClick = useCallback(
+        (lineNumber: number, panel: 'left' | 'right') => {
+            // Determine source and target based on which panel was clicked
+            const isLeftPanel = panel === 'left';
+            const setSourceHighlightedLines = isLeftPanel ? setLeftHighlightedLines : setRightHighlightedLines;
+            const setTargetHighlightedLines = isLeftPanel ? setRightHighlightedLines : setLeftHighlightedLines;
+            const sourceMapping = isLeftPanel ? leftPanel_data.sourceMapping : rightPanel_data.sourceMapping;
+            const targetMapping = isLeftPanel ? rightPanel_data.sourceMapping : leftPanel_data.sourceMapping;
+            const targetTitle = isLeftPanel ? rightPanel_data.title || "PTX" : leftPanel_data.title || "TTGIR";
 
+            // Set highlight on the source panel
+            setSourceHighlightedLines([lineNumber]);
+
+            // Find corresponding lines in target panel using source mappings
+            if (leftPanel.code && rightPanel.code) {
+                handleMappedLinesFound(
+                    sourceMapping,
+                    targetMapping,
+                    lineNumber,
+                    setTargetHighlightedLines,
+                    targetTitle
+                );
+
+            } else {
+                // Clear target panel highlights if no mapping exists
+                setTargetHighlightedLines([]);
+            }
+
+            // Find corresponding Python lines if Python source is shown
+            if (showPythonSource && py_code_info) {
+                const pythonLines = findPythonLines(
+                    sourceMapping,
+                    lineNumber
+                );
+                if (pythonLines.length > 0) {
+                    setPythonHighlightedLines(pythonLines);
+                } else {
+                    setPythonHighlightedLines([]);
+                }
+            }
+
+        },
+        [
+            leftPanel.code,
+            rightPanel.code,
+            leftPanel_data.title,
+            rightPanel_data.title,
+            leftPanel_data.sourceMapping,
+            rightPanel_data.sourceMapping,
+            handleMappedLinesFound,
+            showPythonSource,
+            py_code_info,
+            findPythonLines,
+            leftHighlightedLines,
+            rightHighlightedLines,
+            pythonHighlightedLines
+        ]
+    );
+
+    // Use curried functions to maintain the existing API for component props
+    const handleLeftLineClick = useCallback(
+        (lineNumber: number) => handlePanelLineClick(lineNumber, 'left'),
+        [handlePanelLineClick]
+    );
+
+    const handleRightLineClick = useCallback(
+        (lineNumber: number) => handlePanelLineClick(lineNumber, 'right'),
+        [handlePanelLineClick]
+    );
+
+
+
+    /**
+     * A reusable code panel component
+     */
+    const CodePanel: React.FC<{
+        title: string;
+        displayLanguage: string;
+        code: string;
+        language: string;
+        highlightedLines: number[];
+        onLineClick: (lineNumber: number) => void;
+        viewerId: string;
+        otherViewerId?: string;
+    }> = ({
+        title,
+        displayLanguage,
+        code,
+        language,
+        highlightedLines,
+        onLineClick,
+        viewerId,
+        otherViewerId
+    }) => (
+        <div className="h-full">
+            <div className="bg-blue-600 text-white p-2 font-medium flex justify-between items-center">
+                <span>{title}</span>
+                <span className="text-sm bg-blue-700 px-2 py-1 rounded">
+                    {displayLanguage}
+                </span>
+            </div>
+            <CodeViewer
+                code={code}
+                language={language}
+                height="calc(100% - 40px)"
+                highlightedLines={[...highlightedLines]}
+                onLineClick={onLineClick}
+                theme="light"
+                fontSize={14}
+                viewerId={viewerId}
+                otherViewerId={otherViewerId}
+            />
+        </div>
+    );
 
     // Render two or three panels based on whether Python source is available
     return (
         <div className="h-[calc(100vh-12rem)] bg-white rounded-lg overflow-hidden shadow border border-gray-200">
             {/* Resizable panel layout */}
             <PanelGroup direction="horizontal">
+                {/* Left panel */}
+                <Panel defaultSize={showPythonSource ? 33 : 50} minSize={20}>
+                    <CodePanel
+                        title={leftPanel_data.title}
+                        displayLanguage={leftPanel_data.displayLanguage}
+                        code={leftPanel_data.content}
+                        language={leftPanel.language || "plaintext"}
+                        highlightedLines={leftHighlightedLines}
+                        onLineClick={handleLeftLineClick}
+                        viewerId="left-panel"
+                        otherViewerId="right-panel"
+                    />
+                </Panel>
+
+                {/* Resize handle between panels */}
+                <PanelResizeHandle className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors" />
+
+                {/* Right panel */}
+                <Panel defaultSize={showPythonSource ? 33 : 50} minSize={20}>
+                    <CodePanel
+                        title={rightPanel_data.title}
+                        displayLanguage={rightPanel_data.displayLanguage}
+                        code={rightPanel_data.content}
+                        language={rightPanel.language || "plaintext"}
+                        highlightedLines={rightHighlightedLines}
+                        onLineClick={handleRightLineClick}
+                        viewerId="right-panel"
+                        otherViewerId="left-panel"
+                    />
+                </Panel>
 
             </PanelGroup>
         </div>
