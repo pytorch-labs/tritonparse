@@ -46,19 +46,23 @@ interface CodeViewerProps {
  * @param language Internal language identifier
  * @returns Syntax highlighter language identifier
  */
-const mapLanguageToHighlighter = (language: string): string => {
-  switch (language.toLowerCase()) {
-    case 'mlir':
-      return 'mlir';
-    case 'llvm':
-      return 'llvm';
-    case 'ptx':
-      return 'ptx';
-    case 'python':
-      return 'python';
-    default:
-      return 'plaintext';
+export const mapLanguageToHighlighter = (language: string): string => {
+  const lowerCaseLanguage = language.toLowerCase();
+
+  // Handle language types with endsWith for better accuracy
+  if (lowerCaseLanguage.endsWith("ttgir") || lowerCaseLanguage.endsWith("ttir")) {
+    return 'mlir';
+  } else if (lowerCaseLanguage.endsWith("llir")) {
+    return 'llvm';
+  } else if (lowerCaseLanguage.endsWith("ptx")) {
+    return 'ptx';
+  } else if (lowerCaseLanguage.endsWith("amdgcn")) {
+    return 'amdgcn';
+  } else if (lowerCaseLanguage === "python") {
+    return 'python';
   }
+
+  return 'plaintext';
 };
 
 /**
