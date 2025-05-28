@@ -231,6 +231,43 @@ export async function loadLogData(url: string): Promise<LogEntry[]> {
     }
 }
 
+
+/**
+ * Loads log data from a local file using FileReader
+ * @param file - The File object to load
+ * @returns Promise resolving to an array of LogEntry objects
+ */
+export function loadLogDataFromFile(file: File): Promise<LogEntry[]> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = async (event) => {
+            try {
+                if (!event.target || !event.target.result) {
+                    throw new Error("Failed to read file");
+                }
+
+                const result = event.target.result;
+                if (!(result instanceof ArrayBuffer)) {
+                    throw new Error("Expected ArrayBuffer from FileReader");
+                }
+
+                const textData = await processArrayBuffer(result);
+                resolve(parseLogData(textData));
+            } catch (error) {
+                console.error("Error parsing data from file:", error);
+                reject(error);
+            }
+        };
+
+        reader.onerror = () => {
+            reject(new Error("Error reading file"));
+        };
+
+        reader.readAsArrayBuffer(file);
+    });
+}
+
 /**
  * Process raw log entries to extract kernel information
  * @param logEntries - Array of log entries from the trace file

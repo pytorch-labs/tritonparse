@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import {
   loadLogData,
+  loadLogDataFromFile,
   ProcessedKernel,
   processKernelData,
 } from "./utils/dataLoader";
@@ -58,6 +59,81 @@ function App() {
     }
   }, []); // Empty dependency array means this runs once on mount
 
+  /**
+   * Generic data loading function that handles both URLs and local files
+   * @param source - Either a URL string or a File object
+   */
+  const loadData = async (source: string | File) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get URL parameters for view and kernel hash
+      const params = new URLSearchParams(window.location.search);
+      const view = params.get("view");
+      const kernelHash = params.get("kernel_hash");
+
+      // Load log entries based on source type
+      const logEntries = typeof source === 'string'
+        ? await loadLogData(source)
+        : await loadLogDataFromFile(source);
+
+      // Process raw log entries into kernel data structures
+      const processedKernels = processKernelData(logEntries);
+
+      if (processedKernels.length > 0) {
+        setKernels(processedKernels);
+
+        // First, determine which kernel to select
+        let kernelIndex = 0; // Default to first kernel
+        if (kernelHash) {
+          const foundIndex = findKernelByHash(kernelHash, processedKernels);
+          if (foundIndex >= 0) {
+            kernelIndex = foundIndex;
+          }
+        }
+
+        // Set the selected kernel
+        setSelectedKernel(kernelIndex);
+
+        // Then, determine which view to show
+        if (view === "ir_code_comparison") {
+          setActiveTab("comparison");
+        }
+
+        setDataLoaded(true);
+      } else {
+        console.warn("No kernels found in the processed data");
+        const errorMsg = typeof source === 'string'
+          ? "No kernels found in the default data file. Please try loading a different file."
+          : "No kernels found in the selected file. Please check the file format.";
+        setError(errorMsg);
+      }
+    } catch (err) {
+      console.error(`Error loading data from ${typeof source === 'string' ? 'URL' : 'file'}:`, err);
+      const errorMsg = typeof source === 'string'
+        ? `Failed to load default data: ${err instanceof Error ? err.message : String(err)}`
+        : `Failed to load from local file: ${err instanceof Error ? err.message : String(err)}`;
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Loads the default data file from public directory
+   */
+  const loadDefaultData = async () => {
+    const logFile = "/f0_fc0_a0_cai-.ndjson";
+    await loadData(logFile);
+  };
+
+  /**
+   * Handles loading data from a local file
+   */
+  const handleFileSelected = async (file: File) => {
+    await loadData(file);
+  };
 
   /**
    * Handles loading data from a custom URL
