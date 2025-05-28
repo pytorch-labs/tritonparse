@@ -5,8 +5,14 @@ import {
   loadLogDataFromFile,
   ProcessedKernel,
   processKernelData,
+  getIRType,
 } from "./utils/dataLoader";
+import CodeView from "./pages/CodeView";
+import SingleCodeViewer from "./components/SingleCodeViewer";
+import KernelOverview from "./pages/KernelOverview";
 import DataSourceSelector from "./components/DataSourceSelector";
+import WelcomeScreen from "./components/WelcomeScreen";
+import { mapLanguageToHighlighter } from "./components/CodeViewer";
 
 /**
  * Main application component that handles data loading,
@@ -260,6 +266,75 @@ function App() {
     );
   }
 
+  /**
+   * Renders the main content based on current state (selected IR, kernel, and active tab)
+   */
+  const renderContent = () => {
+    if (selectedIR && selectedKernel >= 0 && kernels.length > 0) {
+      // Display single IR view
+      const kernel = kernels[selectedKernel];
+      if (!kernel) {
+        console.error(`Selected kernel index ${selectedKernel} not found in kernels array of length ${kernels.length}`);
+        return <div className="text-red-600">Error: Selected kernel not found</div>;
+      }
+
+      const irContent = kernel.irFiles[selectedIR];
+      if (!irContent) {
+        console.error(`IR file ${selectedIR} not found in kernel ${kernel.name}`);
+        return <div className="text-red-600">Error: Selected IR file not found in kernel</div>;
+      }
+
+      // Create IRFile object with content and potential source mapping
+      const irFile = {
+        content: irContent,
+        // Add source mapping if available in the kernel data
+        source_mapping: kernel.sourceMappings?.[getIRType(selectedIR)],
+      };
+
+      return (
+        <SingleCodeViewer
+          irFile={irFile}
+          title={selectedIR}
+          language={mapLanguageToHighlighter(selectedIR)}
+          onBack={handleBackFromIRView}
+        />
+      );
+    } else if (!dataLoaded) {
+      // Show welcome screen if no data is loaded
+      return (
+        <WelcomeScreen
+          loadDefaultData={loadDefaultData}
+          handleFileSelected={handleFileSelected}
+          openUrlInput={openUrlInput}
+        />
+      );
+    } else if (kernels.length === 0) {
+      // Show message when no kernels are found
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200 max-w-2xl">
+            <h2 className="text-xl font-semibold text-yellow-800 mb-3">No Kernel Data Found</h2>
+            <p className="text-yellow-700">
+              No Triton kernels were found in the log file. Please make sure you're using the correct log file and that
+              it contains Triton kernel information.
+            </p>
+          </div>
+        </div>
+      );
+    } else {
+      // Show either overview or code comparison based on active tab
+      return activeTab === "overview" ? (
+        <KernelOverview
+          kernels={kernels}
+          onViewIR={handleViewSingleIR}
+          selectedKernel={selectedKernel}
+          onSelectKernel={handleSelectKernel}
+        />
+      ) : (
+        <CodeView kernels={kernels} selectedKernel={selectedKernel} />
+      );
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex flex-col">
@@ -294,9 +369,8 @@ function App() {
             {dataLoaded && kernels.length > 0 && !selectedIR && (
               <div className="flex space-x-4">
                 <button
-                  className={`px-3 py-2 text-sm font-medium rounded-md ${
-                    activeTab === "overview" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === "overview" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
+                    }`}
                   onClick={() => {
                     setActiveTab("overview");
 
@@ -312,9 +386,8 @@ function App() {
                   Kernel Overview
                 </button>
                 <button
-                  className={`px-3 py-2 text-sm font-medium rounded-md ${
-                    activeTab === "comparison" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === "comparison" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
+                    }`}
                   onClick={() => {
                     setActiveTab("comparison");
 
