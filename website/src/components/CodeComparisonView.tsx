@@ -131,7 +131,6 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
     const handleMappedLinesFound = useCallback(
         (
             sourceMappings: Record<string, SourceMapping>,
-            targetMappings: Record<string, SourceMapping>,
             lineNumber: number,
             setTargetHighlightedLines: (lines: number[]) => void,
             targetTitle: string
@@ -205,7 +204,6 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
             const setSourceHighlightedLines = isLeftPanel ? setLeftHighlightedLines : setRightHighlightedLines;
             const setTargetHighlightedLines = isLeftPanel ? setRightHighlightedLines : setLeftHighlightedLines;
             const sourceMapping = isLeftPanel ? leftPanel_data.sourceMapping : rightPanel_data.sourceMapping;
-            const targetMapping = isLeftPanel ? rightPanel_data.sourceMapping : leftPanel_data.sourceMapping;
             const targetTitle = isLeftPanel ? rightPanel_data.title || "PTX" : leftPanel_data.title || "TTGIR";
 
             // Set highlight on the source panel
@@ -215,7 +213,6 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
             if (leftPanel.code && rightPanel.code) {
                 handleMappedLinesFound(
                     sourceMapping,
-                    targetMapping,
                     lineNumber,
                     setTargetHighlightedLines,
                     targetTitle

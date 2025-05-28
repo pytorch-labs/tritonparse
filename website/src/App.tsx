@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import {
   loadLogData,
@@ -35,8 +35,6 @@ function App() {
   const [dataLoaded, setDataLoaded] = useState<boolean>(false);
   // Track the loaded data source URL
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null);
-  // Store the opener's origin for cross-domain communication
-  const openerOrigin = useRef<string | null>(null);
 
   /**
    * Helper function to find a kernel by its hash
