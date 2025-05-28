@@ -75,12 +75,12 @@ def create_python_mapping(
     Returns:
         A dictionary mapping Python source code line numbers to their corresponding IR mappings.
     """
-    py_map = defaultdict(defaultdict(list))
+    py_map = defaultdict(lambda: defaultdict(list))
     for ir_type, ir_map in ir_maps:
         for line_number, info in ir_map.items():
             py_line_number: int = info["line"]
             py_map[py_line_number][f"{ir_type}_lines"].append(line_number)
-    return py_map
+    return {k: dict(v) for k, v in py_map.items()}
 
 
 def create_ir_mapping(
@@ -446,8 +446,8 @@ def parse_single_trace_content(trace_content: str) -> str:
     """
 
     entry = json.loads(trace_content)
-    if entry.get("event_type") != "triton.kernel" and "payload" in entry:
-        logger.warning("Not a triton.kernel event. Skipping.")
+    if entry.get("event_type") != "compilation" and "payload" in entry:
+        logger.warning("Not a compilation event. Skipping.")
         return ""
     payload = entry.setdefault("payload", {})
     file_content = payload.get("file_content", {})
@@ -550,6 +550,8 @@ def parse_single_file(
     with open(file_path, "r") as f:
         file_name = os.path.basename(file_path)
         file_name_without_extension = os.path.splitext(file_name)[0]
+        if output_dir is None:
+            output_dir = os.path.dirname(file_path)
         for i, line in enumerate(f):
             logger.info(f"Processing line {i + 1} in {file_path}")
             # Skip empty lines
@@ -563,16 +565,14 @@ def parse_single_file(
             parsed_json = json.loads(parsed_line)
             payload = parsed_json.get("payload", None)
             if split_by_frame_id_and_compile_id:
-                # TODO: this is a workaround. need to update for the latest format
                 if not payload:
                     logger.warning("No payload found in the parsed JSON.")
                     continue
-                frame_id = parsed_json["payload"].get("frame_id", None)
-                frame_compile_id = parsed_json["payload"].get("frame_compile_id", None)
-                compiled_autograd_id = parsed_json["payload"].get(
-                    "compiled_autograd_id", None
-                )
-                attempt_id = parsed_json["payload"].get("attempt_id", None)
+                pt_info = payload.get("pt_info", {})
+                frame_id = pt_info.get("frame_id", None)
+                frame_compile_id = pt_info.get("frame_compile_id", None)
+                compiled_autograd_id = pt_info.get("compiled_autograd_id", None)
+                attempt_id = pt_info.get("attempt_id", None)
                 output_file_name = ""
                 if frame_id is not None or frame_compile_id is not None:
                     output_file_name = f"f{frame_id}_fc{frame_compile_id}"
@@ -584,11 +584,11 @@ def parse_single_file(
                     logger.warning(
                         "No frame_id or frame_compile_id found in the payload."
                     )
-                    output_file_name = f"{file_name_without_extension}_mapped.json"
+                    output_file_name = f"{file_name_without_extension}_mapped.ndjson"
                 else:
-                    output_file_name = f"{output_file_name}.json"
+                    output_file_name = f"{output_file_name}.ndjson"
             else:
-                output_file_name = f"{file_name_without_extension}_mapped.json"
+                output_file_name = f"{file_name_without_extension}_mapped.ndjson"
             output_file = os.path.join(output_dir, output_file_name)
             outputs[output_file].append(parsed_line)
             logger.info(f"output file: {output_file}")
@@ -617,3 +617,11 @@ def parse_args():
         help="Output NDJSON path. If it is None, the default output file name will be set to {input}_mapped.ndjson in the parse function.",
     )
     return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    if args.input:
+        parse_single_file(args.input, args.output_dir)
+    else:
+        logger.error("No input file specified.")
