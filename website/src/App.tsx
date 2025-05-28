@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import {
+  loadLogData,
   ProcessedKernel,
+  processKernelData,
 } from "./utils/dataLoader";
 import DataSourceSelector from "./components/DataSourceSelector";
 
@@ -57,6 +59,89 @@ function App() {
   }, []); // Empty dependency array means this runs once on mount
 
 
+  /**
+   * Handles loading data from a custom URL
+   */
+  const handleUrlSelected = async (url: string, initialView?: string | null, kernelHash?: string | null) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const logEntries = await loadLogData(url);
+
+      // Process raw log entries into kernel data structures
+      const processedKernels = processKernelData(logEntries);
+
+      if (processedKernels.length > 0) {
+        setKernels(processedKernels);
+
+        // First, determine which kernel to select
+        let kernelIndex = 0; // Default to first kernel
+        if (kernelHash) {
+          const foundIndex = findKernelByHash(kernelHash, processedKernels);
+          if (foundIndex >= 0) {
+            kernelIndex = foundIndex;
+          } else {
+            console.log(`Kernel hash ${kernelHash} not found, selected first kernel`);
+          }
+        }
+
+        // Set the selected kernel
+        setSelectedKernel(kernelIndex);
+
+        // Then, determine which view to show
+        if (initialView === "ir_code_comparison") {
+          setActiveTab("comparison");
+        }
+        setDataLoaded(true);
+        setLoadedUrl(url);
+
+        // Update URL parameters
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set("json_url", url);
+
+        // Add view and kernel_hash parameters if applicable
+        if (initialView === "ir_code_comparison") {
+          newUrl.searchParams.set("view", "ir_code_comparison");
+        }
+
+        if (kernelHash) {
+          const foundIndex = findKernelByHash(kernelHash, processedKernels);
+          if (foundIndex >= 0) {
+            newUrl.searchParams.set("kernel_hash", kernelHash);
+          }
+        }
+
+        window.history.replaceState({}, "", newUrl.toString());
+      } else {
+        console.warn("No kernels found in the URL data");
+        setError("No kernels found in the URL data. Please check the file format.");
+      }
+    } catch (err) {
+      console.error("Error loading data from URL:", err);
+      setError(`Failed to load from URL: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Opens the URL input field
+   */
+  const openUrlInput = () => {
+    // Find the URL button and click it to activate the input field
+    const urlButton = document.querySelector('button:has(svg path[d*="12.586 4.586"])');
+    if (urlButton && urlButton instanceof HTMLElement) {
+      urlButton.click();
+      // Focus on the input field
+      setTimeout(() => {
+        const urlInput = document.querySelector('input[type="url"]');
+        if (urlInput && urlInput instanceof HTMLInputElement) {
+          urlInput.focus();
+        }
+      }, 100);
+    }
+  };
 
   /**
    * Handles selection of an IR file for detailed viewing
