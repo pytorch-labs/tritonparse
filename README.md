@@ -8,10 +8,11 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 ## 🚀 Features
 
 ### Visualization & Analysis
+
 - **Interactive Kernel Explorer**: Display detailed kernel information and stack traces
 - **Multi-format IR Support**: View and explore multiple Triton IR formats:
   - TTGIR (Triton GPU IR)
-  - TTIR (Triton IR) 
+  - TTIR (Triton IR)
   - LLIR (LLVM IR)
   - PTX (Parallel Thread Execution)
   - AMDGCN (AMD GPU IR)
@@ -20,12 +21,14 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 - **Source Mapping**: Trace relationships between different compilation stages
 
 ### Structured Logging
+
 - **Compilation Tracing**: Capture detailed Triton compilation events
 - **Stack Trace Integration**: Full Python stack traces for compilation events
 - **Metadata Extraction**: Comprehensive kernel metadata and compilation statistics
 - **NDJSON Output**: Structured logging format for easy processing
 
 ### Website Deployment Options
+
 - **GitHub Pages**: Automatic deployment with GitHub Actions
 - **Standalone Build**: Single HTML file with all assets inlined
 - **Local Development**: Full development environment setup
@@ -33,6 +36,7 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 ## 🛠️ Tech Stack
 
 **Frontend:**
+
 - React 19 with TypeScript
 - Vite for build tooling
 - Tailwind CSS for styling
@@ -41,6 +45,7 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 - React Resizable Panels for layout
 
 **Backend/Processing:**
+
 - Python with Triton integration
 - Structured logging and event tracing
 - Source mapping extraction utilities
@@ -50,10 +55,12 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 ### For Users (Trace Generation Only)
 
 **Prerequisites:**
+
 - **Python** >= 3.8
 - **Triton** >= 3.3.1
 
 **Quick Start:**
+
 ```bash
 # Clone the repository
 git clone https://github.com/pytorch-labs/tritonparse.git
@@ -66,10 +73,12 @@ pip install -e .
 ### For Website Developers (Optional)
 
 **Additional Prerequisites:**
+
 - **Node.js** >= 18.0.0
 - **npm**
 
 **Website Setup:**
+
 ```bash
 # Install website dependencies
 cd website
@@ -117,14 +126,14 @@ For contributors working on the website:
 cd website
 npm run dev
 ```
+
 Access the application at `http://localhost:5173`
 
 **Available Scripts:**
+
 - `npm run build` - Standard build
-- `npm run build:single` - Standalone HTML file  
+- `npm run build:single` - Standalone HTML file
 - `npm run preview` - Preview production build
-
-
 
 ## 📁 Project Structure
 
@@ -132,7 +141,7 @@ Access the application at `http://localhost:5173`
 tritonparse/
 ├── tritonparse/              # Python package
 │   ├── structured_logging.py # Main logging infrastructure
-│   ├── extract_source_mappings.py # Source mapping utilities  
+│   ├── extract_source_mappings.py # Source mapping utilities
 │   ├── source_type.py        # Source type definitions
 │   ├── utils.py              # Helper utilities
 │   ├── common.py             # Common functions
@@ -161,11 +170,13 @@ tritonparse/
 ### Python Development
 
 **Install in development mode:**
+
 ```bash
 pip install -e .
 ```
 
 **Example test:**
+
 ```bash
 cd tests
 python test_add.py
@@ -174,12 +185,14 @@ python test_add.py
 ### Website Development (For Contributors)
 
 **Start development server:**
+
 ```bash
 cd website
 npm run dev
 ```
 
 **Available Scripts:**
+
 - `npm run dev` - Start development server
 - `npm run build` - Production build
 - `npm run build:single` - Standalone HTML build
@@ -196,6 +209,7 @@ The TritonParse visualization tool is automatically deployed and available at:
 ### For Contributors: Local Deployment
 
 **Build standalone version:**
+
 ```bash
 cd website
 npm run build:single
