@@ -1,6 +1,6 @@
 # TritonParse
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: BSD-3](https://img.shields.io/badge/License-BSD--3-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deploy-brightgreen)](https://pytorch-labs.github.io/tritonparse/)
 
 A comprehensive visualization and analysis tool for Triton IR files, designed to help developers analyze, debug, and understand Triton kernel compilation processes.
@@ -151,7 +151,7 @@ tritonparse/
 │   └── *.ndjson              # Example trace files
 ├── run.py                    # Main runner script
 ├── pyproject.toml            # Python package configuration
-├── LICENSE                   # MIT license
+├── LICENSE                   # BSD-3 license
 ├── CONTRIBUTING.md           # Contribution guidelines
 └── CODE_OF_CONDUCT.md        # Code of conduct
 ```
@@ -245,7 +245,7 @@ python tritonparse/extract_source_mappings.py input.ndjson output_mapped.ndjson
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the BSD-3 License - see the [LICENSE](LICENSE) file for details.
 
 ## 🔗 Related Projects
 
