@@ -22,11 +22,18 @@ const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
     const files = e.target.files;
     if (files && files.length > 0) {
       const file = files[0];
-      if (file.type === 'application/json' || file.name.endsWith('.json')) {
+      
+      // Support NDJSON and compressed files only
+      const fileName = file.name.toLowerCase();
+      const isValidFile = fileName.endsWith('.ndjson') || 
+                         fileName.endsWith('.gz') ||
+                         file.type === 'application/x-ndjson';
+      
+      if (isValidFile) {
         setError(null);
         onFileSelected(file);
       } else {
-        setError('Please select a JSON file');
+        setError('Please select an NDJSON or compressed file');
       }
     }
   };
@@ -72,12 +79,12 @@ const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
                 clipRule="evenodd"
               />
             </svg>
-            Open Local JSON
+            Open Local File
           </label>
           <input
             type="file"
             id="fileInput"
-            accept=".json,application/json"
+            accept=".ndjson,.gz,application/x-ndjson,application/gzip"
             onChange={handleFileChange}
             disabled={isLoading}
             className="hidden"
@@ -118,7 +125,7 @@ const DataSourceSelector: React.FC<DataSourceSelectorProps> = ({
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter JSON file URL"
+              placeholder="Enter NDJSON file URL"
               className="flex-1 p-2 border border-gray-300 rounded-l-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               disabled={isLoading}
             />

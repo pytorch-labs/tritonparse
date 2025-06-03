@@ -14,7 +14,15 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFileSelected(files[0]);
+      const file = files[0];
+      
+      // Support NDJSON and compressed files only
+      const fileName = file.name.toLowerCase();
+      const isValidFile = fileName.endsWith('.ndjson') || fileName.endsWith('.gz');
+      
+      if (isValidFile) {
+        handleFileSelected(file);
+      }
     }
   };
 
@@ -23,6 +31,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome to Triton Parse</h2>
       <p className="mb-8 text-gray-600">
         Load a Triton log file to analyze compiled kernels and their IR representations.
+        Supports NDJSON and compressed (.gz) files.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl mb-10">
@@ -77,12 +86,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-800 mb-2">Local File</h3>
-          <p className="text-sm text-gray-600 mb-4">Open a Triton log file from your device</p>
+          <p className="text-sm text-gray-600 mb-4">Open a Triton log file from your device (NDJSON or .gz)</p>
           <label htmlFor="welcomeFileInput" className="absolute inset-0 cursor-pointer" aria-label="Open local file" />
           <input
             type="file"
             id="welcomeFileInput"
-            accept=".json,application/json"
+            accept=".ndjson,.gz,application/x-ndjson,application/gzip"
             onChange={handleFileChange}
             className="hidden"
           />
