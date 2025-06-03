@@ -353,7 +353,7 @@ function App() {
               }}
               title="Back to home"
             >
-              Triton Parse
+              TritonParse
             </h1>
 
             {/* Data source selector (only show when data is loaded or when on the welcome screen) */}
