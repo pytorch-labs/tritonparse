@@ -490,7 +490,7 @@ def parse_single_trace_content(trace_content: str) -> str:
                 )
 
     py_map = {}
-    
+
     if "python_source" in payload:
         logger.info(
             f"Added Python source information (lines {payload['python_source']['start_line']}-{payload['python_source']['end_line']})"
@@ -549,10 +549,10 @@ def parse_single_file(
         in NDJSON format (one JSON object per line).
     """
     outputs = defaultdict(list)
-    
+
     # Set default output directory if not provided
     output_dir = output_dir or os.path.dirname(file_path)
-    
+
     with open(file_path, "r") as f:
         file_name = os.path.basename(file_path)
         file_name_without_extension = os.path.splitext(file_name)[0]
