@@ -1,0 +1,59 @@
+name: Deploy Standalone to GitHub Pages
+
+on:
+  # This workflow can be manually triggered
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+concurrency:
+  group: "pages-standalone"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy-standalone:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: "website/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: ./website
+        run: npm ci
+
+      - name: Build standalone website
+        working-directory: ./website
+        run: npm run build:single
+
+      - name: Prepare standalone deployment
+        run: |
+          mkdir -p standalone-deploy
+          cp website/dist/standalone.html standalone-deploy/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./standalone-deploy"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
