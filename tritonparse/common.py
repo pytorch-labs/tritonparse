@@ -1,5 +1,5 @@
 import gzip
-
+import json
 import os
 import re
 import shutil
@@ -194,6 +194,7 @@ def parse_logs(
     logs_to_parse: str,
     rank_config: RankConfig,
     verbose: bool = False,
+    tritonparse_url_prefix: str = "",
 ) -> Tuple[str, List[str]]:
     """
     Parse logs.
@@ -202,6 +203,7 @@ def parse_logs(
         logs_to_parse: Path to directory containing logs to parse
         rank_config: Rank configuration
         verbose: Whether to print verbose information
+        tritonparse_url_prefix: URL prefix for the generated file mapping
 
     Returns:
         Tuple of (parsed log directory, list of parsed ranks)
@@ -238,9 +240,13 @@ def parse_logs(
                     ranks[rank] = [path]
 
     if not ranks:
-        raise RuntimeError(f"No eligible structured trace logs found in {raw_log_dir}")
+        raise RuntimeError(
+            f"No eligible structured trace logs found in {raw_log_dir}")
 
     parsed_ranks = []
+    file_mapping = {
+        "tritonparse_url_prefix": tritonparse_url_prefix
+    }
 
     # Parse each eligible log
     for rank, files in ranks.items():
@@ -250,6 +256,9 @@ def parse_logs(
                 "Warning: multiple logs found for the same rank. Using filenames."
             )
             use_filenames = True
+
+        # Determine rank key for file mapping
+        rank_key = "rank_default" if rank.is_default else f"rank_{rank.value}"
 
         for file_path in files:
             filename = os.path.basename(file_path)
@@ -264,7 +273,52 @@ def parse_logs(
 
             output_dir = os.path.join(parsed_log_dir, relative_path)
             parsed_ranks.append(relative_path)
+
+            # Parse the file
             parse_single_file(input_file, output_dir)
+
+            # Collect generated files after parsing
+            if os.path.exists(output_dir):
+                generated_files = []
+                mapped_file = None
+
+                for generated_item in os.listdir(output_dir):
+                    generated_path = os.path.join(output_dir, generated_item)
+                    if os.path.isfile(generated_path):
+                        # Check if it's a mapped file (assuming files with 'mapped' in name)
+                        if 'mapped' in generated_item.lower():
+                            mapped_file = generated_item
+                        else:
+                            generated_files.append(generated_item)
+
+                # Initialize rank entry if not exists
+                if rank_key not in file_mapping:
+                    file_mapping[rank_key] = {
+                        "regular_files": [],
+                        "mapped_file": None
+                    }
+
+                # Add files to the mapping
+                file_mapping[rank_key]["regular_files"].extend(generated_files)
+                if mapped_file:
+                    file_mapping[rank_key]["mapped_file"] = mapped_file
+
+    # Clean up the file mapping - remove None mapped_files and ensure no duplicates
+    for rank_key in file_mapping:
+        if rank_key != "tritonparse_url_prefix":
+            # Remove duplicates from regular_files
+            file_mapping[rank_key]["regular_files"] = list(
+                set(file_mapping[rank_key]["regular_files"]))
+            # Remove mapped_file if None
+            if file_mapping[rank_key]["mapped_file"] is None:
+                del file_mapping[rank_key]["mapped_file"]
+
+    # Save file mapping to parsed_log_dir
+    log_file_list_path = os.path.join(parsed_log_dir, "log_file_list.json")
+    with open(log_file_list_path, "w") as f:
+        json.dump(file_mapping, f, indent=2)
+    # NOTICE: this print is required for tlparser-tritonparse integration
+    print(f"tritonparse log file list: {log_file_list_path}")
 
     return parsed_log_dir, parsed_ranks
 
