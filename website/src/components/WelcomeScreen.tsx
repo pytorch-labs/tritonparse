@@ -15,11 +15,11 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
     const files = e.target.files;
     if (files && files.length > 0) {
       const file = files[0];
-      
+
       // Support NDJSON and compressed files only
       const fileName = file.name.toLowerCase();
-      const isValidFile = fileName.endsWith('.ndjson') || fileName.endsWith('.gz');
-      
+      const isValidFile = fileName.endsWith(".ndjson") || fileName.endsWith(".gz");
+
       if (isValidFile) {
         handleFileSelected(file);
       }
@@ -30,8 +30,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
     <div className="flex flex-col items-center justify-center px-4 py-16 max-w-4xl mx-auto text-center">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome to Triton Parse</h2>
       <p className="mb-8 text-gray-600">
-        Load a Triton log file to analyze compiled kernels and their IR representations.
-        Supports NDJSON and compressed (.gz) files.
+        Load a Triton log file to analyze compiled kernels and their IR representations. Supports NDJSON and compressed
+        (.gz) files.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl mb-10">
