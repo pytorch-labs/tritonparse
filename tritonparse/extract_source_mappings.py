@@ -155,7 +155,8 @@ def create_bidirectional_mapping(
         if target_line in target_map:
             target_map[target_line][f"{source_type}_lines"] = source_lines
 
-    logger.info(f"Created {source_type} to {target_type} mappings (and reverse)")
+    logger.info(
+        f"Created {source_type} to {target_type} mappings (and reverse)")
 
 
 def extract_loc_definitions(ir_content: str) -> Dict[str, Dict[str, Any]]:
@@ -185,7 +186,8 @@ def extract_loc_definitions(ir_content: str) -> Dict[str, Dict[str, Any]]:
     # #loc1 = loc(unknown) is another special case. We ignore it.
     for loc_id, filename, line, col in LOC_PATTERN.findall(ir_content):
         key = loc_id
-        locations[key] = {"file": filename, "line": int(line), "column": int(col)}
+        locations[key] = {"file": filename,
+                          "line": int(line), "column": int(col)}
     return locations
 
 
@@ -264,9 +266,11 @@ def extract_ptx_amdgcn_mappings(
                         f"Filename '{filename}' has multiple file paths. Using the first one."
                     )
                 file_path = list(referenced_files[filename])[0]
-                logger.warning(f"Resolved filename '{filename}' to {file_path}")
+                logger.warning(
+                    f"Resolved filename '{filename}' to {file_path}")
             else:
-                logger.warning(f"Filename '{filename}' not found in referenced files.")
+                logger.warning(
+                    f"Filename '{filename}' not found in referenced files.")
         return file_path
 
     # Regular expressions to match function start and end markers
@@ -426,7 +430,8 @@ def process_ir(
             return {}
         with open(ir_file_path, "r") as f:
             ir_content = f.read()
-    mapping = generate_source_mappings(ir_content, key.split(".")[1], other_mappings)
+    mapping = generate_source_mappings(
+        ir_content, key.split(".")[1], other_mappings)
     logger.info(f"Generated source mapping for {key}")
     return mapping
 
@@ -466,8 +471,10 @@ def parse_single_trace_content(trace_content: str) -> str:
     # generate ttir->source, ttgir->source, ptx->source
     ttir_map = process_ir(ttir_key, file_content, file_path)
     ttgir_map = process_ir(ttgir_key, file_content, file_path)
-    ptx_map = process_ir(ptx_key, file_content, file_path, [ttir_map, ttgir_map])
-    amdgcn_map = process_ir(amdgcn_key, file_content, file_path, [ttir_map, ttgir_map])
+    ptx_map = process_ir(ptx_key, file_content,
+                         file_path, [ttir_map, ttgir_map])
+    amdgcn_map = process_ir(amdgcn_key, file_content,
+                            file_path, [ttir_map, ttgir_map])
 
     # Create bidirectional mappings between all IR types
     ir_maps = {
@@ -480,7 +487,7 @@ def parse_single_trace_content(trace_content: str) -> str:
     # Create mappings between all pairs of IR types
     ir_types = list(ir_maps.keys())
     for i, src_type in enumerate(ir_types):
-        for tgt_type in ir_types[i + 1 :]:
+        for tgt_type in ir_types[i + 1:]:
             if ir_maps[src_type] and ir_maps[tgt_type]:
                 create_bidirectional_mapping(
                     ir_maps[src_type], ir_maps[tgt_type], src_type, tgt_type
@@ -571,13 +578,14 @@ def parse_single_file(
                 pt_info = payload.get("pt_info", {})
                 frame_id = pt_info.get("frame_id", None)
                 frame_compile_id = pt_info.get("frame_compile_id", None)
-                compiled_autograd_id = pt_info.get("compiled_autograd_id", None)
+                compiled_autograd_id = pt_info.get(
+                    "compiled_autograd_id", None)
                 attempt_id = pt_info.get("attempt_id", None)
                 output_file_name = ""
                 if frame_id is not None or frame_compile_id is not None:
                     output_file_name = f"f{frame_id}_fc{frame_compile_id}"
                 if compiled_autograd_id is not None:
-                    output_file_name += f"_ca{compiled_autograd_id}"
+                    output_file_name += f"_cai{compiled_autograd_id}"
                 if attempt_id is not None:
                     output_file_name += f"_a{attempt_id}"
                 if output_file_name == "":
@@ -604,7 +612,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Extract source code mappings from Triton trace files."
     )
-    parser.add_argument("-i", "--input", help="Path to the Triton trace NDJSON file")
+    parser.add_argument(
+        "-i", "--input", help="Path to the Triton trace NDJSON file")
     parser.add_argument(
         "--output-dir",
         default=None,
