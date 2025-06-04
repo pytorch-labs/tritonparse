@@ -93,10 +93,7 @@ def oss_parse(args) -> int:
             os.makedirs(out_dir, exist_ok=True)
             return
 
-    parsed_log_dir, parsed_ranks = parse_logs(logs, rank_config, verbose)  # type: ignore
-
-    # gzip all files in the parsed log directory
-    gzip_folder(parsed_log_dir, parsed_ranks, verbose)
+    parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
 
     if args.out is not None:
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
