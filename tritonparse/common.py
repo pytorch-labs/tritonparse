@@ -1,5 +1,7 @@
 import gzip
 
+import importlib
+import importlib.util
 import os
 import re
 import shutil
@@ -17,13 +19,7 @@ LOG_PREFIX = "dedicated_log_triton_trace_"
 
 
 def is_fbcode():
-    try:
-        from .fb import IS_FBCODE_CHECK  # noqa
-
-        return True
-    except ImportError as e:
-        print(e)
-        return False
+    return importlib.util.find_spec("tritonparse.fb.IS_FBCODE_CHECK") is not None
 
 
 if is_fbcode():
