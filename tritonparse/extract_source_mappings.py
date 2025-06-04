@@ -577,7 +577,7 @@ def parse_single_file(
                 if frame_id is not None or frame_compile_id is not None:
                     output_file_name = f"f{frame_id}_fc{frame_compile_id}"
                 if compiled_autograd_id is not None:
-                    output_file_name += f"_ca{compiled_autograd_id}"
+                    output_file_name += f"_cai{compiled_autograd_id}"
                 if attempt_id is not None:
                     output_file_name += f"_a{attempt_id}"
                 if output_file_name == "":
