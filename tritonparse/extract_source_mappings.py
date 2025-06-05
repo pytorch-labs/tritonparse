@@ -489,6 +489,8 @@ def parse_single_trace_content(trace_content: str) -> str:
                     f"Created bidirectional mapping between {src_type} and {tgt_type}"
                 )
 
+    py_map = {}
+
     if "python_source" in payload:
         logger.info(
             f"Added Python source information (lines {payload['python_source']['start_line']}-{payload['python_source']['end_line']})"
@@ -547,11 +549,13 @@ def parse_single_file(
         in NDJSON format (one JSON object per line).
     """
     outputs = defaultdict(list)
+
+    # Set default output directory if not provided
+    output_dir = output_dir or os.path.dirname(file_path)
+
     with open(file_path, "r") as f:
         file_name = os.path.basename(file_path)
         file_name_without_extension = os.path.splitext(file_name)[0]
-        if output_dir is None:
-            output_dir = os.path.dirname(file_path)
         for i, line in enumerate(f):
             logger.info(f"Processing line {i + 1} in {file_path}")
             # Skip empty lines
@@ -571,22 +575,16 @@ def parse_single_file(
                 pt_info = payload.get("pt_info", {})
                 frame_id = pt_info.get("frame_id", None)
                 frame_compile_id = pt_info.get("frame_compile_id", None)
-                compiled_autograd_id = pt_info.get("compiled_autograd_id", None)
-                attempt_id = pt_info.get("attempt_id", None)
+                compiled_autograd_id = pt_info.get("compiled_autograd_id", "-")
+                attempt_id = pt_info.get("attempt_id", 0)
                 output_file_name = ""
                 if frame_id is not None or frame_compile_id is not None:
-                    output_file_name = f"f{frame_id}_fc{frame_compile_id}"
-                if compiled_autograd_id is not None:
-                    output_file_name += f"_cai{compiled_autograd_id}"
-                if attempt_id is not None:
-                    output_file_name += f"_a{attempt_id}"
-                if output_file_name == "":
+                    output_file_name = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{compiled_autograd_id}.ndjson"
+                else:
                     logger.warning(
                         "No frame_id or frame_compile_id found in the payload."
                     )
                     output_file_name = f"{file_name_without_extension}_mapped.ndjson"
-                else:
-                    output_file_name = f"{output_file_name}.ndjson"
             else:
                 output_file_name = f"{file_name_without_extension}_mapped.ndjson"
             output_file = os.path.join(output_dir, output_file_name)
