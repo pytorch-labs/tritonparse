@@ -128,7 +128,7 @@ function App() {
    * Loads the default data file from public directory
    */
   const loadDefaultData = async () => {
-    const logFile = "/f0_fc0_a0_cai-.ndjson";
+    const logFile = "./f0_fc0_a0_cai-.ndjson";
     await loadData(logFile);
   };
 
