@@ -6,14 +6,7 @@ from pathlib import Path
 # argument parser for OSS
 parser = None
 
-from .common import (
-    copy_local_to_tmpdir,
-    gzip_folder,
-    is_fbcode,
-    parse_logs,
-    RankConfig,
-    save_logs,
-)
+from .common import copy_local_to_tmpdir, is_fbcode, parse_logs, RankConfig, save_logs
 from .source_type import Source, SourceType
 
 
@@ -51,7 +44,7 @@ def init_parser():
     )
     parser.add_argument("-v", "--verbose", help="Verbose logging", action="store_true")
     if is_fbcode():
-        from .fb.utils import append_parser
+        from tritonparse.fb.utils import append_parser
 
         append_parser(parser)
     return parser
@@ -93,10 +86,6 @@ def oss_parse(args) -> int:
             os.makedirs(out_dir, exist_ok=True)
             return
 
-    parsed_log_dir, parsed_ranks = parse_logs(logs, rank_config, verbose)  # type: ignore
-
-    # gzip all files in the parsed log directory
-    gzip_folder(parsed_log_dir, parsed_ranks, verbose)
-
+    parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
     if args.out is not None:
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)

@@ -20,13 +20,13 @@ LOG_PREFIX = "dedicated_log_triton_trace_"
 
 
 def is_fbcode():
-    return importlib.util.find_spec("tritonparse.fb.IS_FBCODE_CHECK") is not None
+    return importlib.util.find_spec("tritonparse.fb") is not None
 
 
 if is_fbcode():
-    from .fb.source_type import SourceType
+    from tritonparse.fb.source_type import SourceType
 else:
-    from .source_type import SourceType
+    from tritonparse.source_type import SourceType
 
 
 class Rank:
@@ -113,12 +113,12 @@ class RankConfig:
 
         if rank is not None:
             return cls(rank=Rank(rank))
-        if is_fbcode():
-            from fb.utils import rank_config_from_cli_args
+        if source_type in [SourceType.LOCAL, SourceType.LOCAL_FILE]:
+            return cls(is_local=True)
+        elif is_fbcode():
+            from tritonparse.fb.utils import rank_config_from_cli_args
 
             return rank_config_from_cli_args(cls, source_type)
-        elif source_type in [SourceType.LOCAL, SourceType.LOCAL_FILE]:
-            return cls(is_local=True)
         else:
             return cls(all_ranks=True)
 
@@ -134,32 +134,32 @@ class RankConfig:
         return Rank()
 
 
-def gzip_folder(folder: str, parsed_ranks: List[str], verbose: bool) -> None:
+def gzip_single_file(file_path: str, verbose: bool = False) -> str:
     """
-    Gzip all files in a folder.
-
+    Gzip a single file and delete the original file.
     Args:
-        folder: Path to folder
+        file_path: Path to the file to gzip
         verbose: Whether to print verbose information
+    Returns:
+        Path to the gzipped file
     """
-    for parsed_rank in parsed_ranks:
-        target_folder = os.path.join(folder, parsed_rank)
-        for filename in os.listdir(target_folder):
-            if filename.endswith(".gz"):
-                continue
+    if file_path.endswith(".gz"):
+        return file_path
 
-            file_path = os.path.join(target_folder, filename)
-            if os.path.isfile(file_path):
-                if verbose:
-                    logger.info(f"Gzipping {file_path}")
-                with open(file_path, "rb") as f_in:
-                    with gzip.open(file_path + ".gz", "wb") as f_out:
-                        shutil.copyfileobj(f_in, f_out)
-                # Delete the original file after successful compression
-                os.remove(file_path)
-                if verbose:
-                    logger.info(f"Deleted original file {file_path}")
-    logger.info(f"Compressed all files in {folder}")
+    gz_file_path = file_path + ".gz"
+    if verbose:
+        logger.info(f"Gzipping {file_path}")
+
+    with open(file_path, "rb") as f_in:
+        with gzip.open(gz_file_path, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    # Delete the original file after successful compression
+    os.remove(file_path)
+    if verbose:
+        logger.info(f"Deleted original file {file_path}")
+
+    return gz_file_path
 
 
 def copy_local_to_tmpdir(local_path: str, verbose: bool = False) -> str:
@@ -271,7 +271,7 @@ def parse_logs(
             # Parse the file
             parse_single_file(input_file, output_dir)
 
-            # Collect generated files after parsing
+            # Collect generated files after parsing and gzip them immediately
             if os.path.exists(output_dir):
                 generated_files = []
                 mapped_file = None
@@ -279,18 +279,24 @@ def parse_logs(
                 for generated_item in os.listdir(output_dir):
                     generated_path = os.path.join(output_dir, generated_item)
                     if os.path.isfile(generated_path):
+                        # Gzip the file immediately after parsing
+                        gz_file_path = gzip_single_file(generated_path, verbose)
+                        gz_filename = os.path.basename(gz_file_path)
                         # Check if it's a mapped file (assuming files with 'mapped' in name)
                         if "mapped" in generated_item.lower():
-                            mapped_file = generated_item
+                            mapped_file = gz_filename
                         else:
-                            generated_files.append(generated_item)
-
+                            generated_files.append(gz_filename)
                 # Initialize rank entry if not exists
                 if rank_key not in file_mapping:
                     file_mapping[rank_key] = {"regular_files": [], "mapped_file": None}
 
-                # Add files to the mapping
+                # Add files to the mapping (now with .gz extensions)
                 file_mapping[rank_key]["regular_files"].extend(generated_files)
+                # this is used to generate the tritonparse url
+                file_mapping[rank_key]["rank_suffix"] = rank_config.to_rank().to_string(
+                    "/"
+                )
                 if mapped_file:
                     file_mapping[rank_key]["mapped_file"] = mapped_file
 
@@ -304,14 +310,12 @@ def parse_logs(
             # Remove mapped_file if None
             if file_mapping[rank_key]["mapped_file"] is None:
                 del file_mapping[rank_key]["mapped_file"]
-
     # Save file mapping to parsed_log_dir
     log_file_list_path = os.path.join(parsed_log_dir, "log_file_list.json")
     with open(log_file_list_path, "w") as f:
         json.dump(file_mapping, f, indent=2)
     # NOTICE: this print is required for tlparser-tritonparse integration
     print(f"tritonparse log file list: {log_file_list_path}")
-
     return parsed_log_dir, parsed_ranks
 
 
