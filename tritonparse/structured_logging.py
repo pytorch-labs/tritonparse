@@ -1,3 +1,5 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+
 import atexit
 import importlib
 import inspect
@@ -259,10 +261,8 @@ class TritonJsonFormatter(logging.Formatter):
             log_entry["payload"] = json.loads(payload)
         clean_log_entry = convert(log_entry)
         if not TRITONPARSE_NDJSON:
-            log.info("TritonJsonFormatter: using JSON format")
             return json.dumps(clean_log_entry, indent=2)
         else:
-            log.info("TritonJsonFormatter: using NDJSON format")
             # NDJSON format requires a newline at the end of each line
             return json.dumps(clean_log_entry, separators=(",", ":")) + "\n"
 

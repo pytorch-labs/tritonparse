@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+
 from tritonparse.common import is_fbcode
 from tritonparse.utils import init_parser
 

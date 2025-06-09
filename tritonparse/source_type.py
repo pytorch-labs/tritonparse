@@ -1,3 +1,5 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+
 from enum import Enum
 from pathlib import Path
 from typing import Tuple

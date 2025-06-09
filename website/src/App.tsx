@@ -460,7 +460,11 @@ function App() {
       <footer className="w-full py-1 px-6 border-t border-gray-200 bg-white mt-auto">
         <div className="container mx-auto flex justify-between items-center text-sm">
           <div className="text-gray-500">
-            &copy; {new Date().getFullYear()} TritonParse
+            Copyright © {new Date().getFullYear()} Meta Platforms, Inc
+            <span className="mx-2">|</span>
+            <a href="https://opensource.fb.com/legal/terms" className="hover:underline">Terms of Use</a>
+            <span className="mx-2">|</span>
+            <a href="https://opensource.fb.com/legal/privacy" className="hover:underline">Privacy Policy</a>
           </div>
           <div className="text-gray-500">
             Version {import.meta.env.PACKAGE_VERSION}

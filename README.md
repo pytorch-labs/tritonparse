@@ -57,7 +57,14 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 **Prerequisites:**
 
 - **Python** >= 3.8
-- **Triton** >= 3.3.1
+- **Triton** > 3.3.1
+
+For now, you need to manually install latest Triton from source.
+```bash
+git clone https://github.com/triton-lang/triton
+cd triton
+pip install -e .
+```
 
 **Quick Start:**
 
