@@ -14,15 +14,24 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      handleFileSelected(files[0]);
+      const file = files[0];
+
+      // Support NDJSON and compressed files only
+      const fileName = file.name.toLowerCase();
+      const isValidFile = fileName.endsWith(".ndjson") || fileName.endsWith(".gz");
+
+      if (isValidFile) {
+        handleFileSelected(file);
+      }
     }
   };
 
   return (
     <div className="flex flex-col items-center justify-center px-4 py-16 max-w-4xl mx-auto text-center">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome to Triton Parse</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome to TritonParse</h2>
       <p className="mb-8 text-gray-600">
-        Load a Triton log file to analyze compiled kernels and their IR representations.
+        Load a Triton log file to analyze compiled kernels and their IR representations. Supports NDJSON and compressed
+        (.gz) files.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-4xl mb-10">
@@ -77,12 +86,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-800 mb-2">Local File</h3>
-          <p className="text-sm text-gray-600 mb-4">Open a Triton log file from your device</p>
+          <p className="text-sm text-gray-600 mb-4">Open a Triton log file from your device (NDJSON or .gz)</p>
           <label htmlFor="welcomeFileInput" className="absolute inset-0 cursor-pointer" aria-label="Open local file" />
           <input
             type="file"
             id="welcomeFileInput"
-            accept=".json,application/json"
+            accept=".ndjson,.gz,application/x-ndjson,application/gzip"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -119,9 +128,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
       </div>
 
       <div className="text-sm text-gray-500 max-w-2xl">
-        <h4 className="font-medium mb-2">About Triton Parse</h4>
+        <h4 className="font-medium mb-2">About TritonParse</h4>
         <p>
-          Triton Parse helps you analyze Triton GPU kernels by visualizing the compilation process across different IR
+          TritonParse helps you analyze Triton GPU kernels by visualizing the compilation process across different IR
           stages.
         </p>
       </div>

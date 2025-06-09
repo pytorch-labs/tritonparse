@@ -104,7 +104,7 @@ def your_kernel():
     pass
 
 compiled_kernel = torch.compile(your_kernel)
-result = compiled_kernel()  # This will generate trace logs in ./logs/
+result = compiled_kernel()  # This will generate NDJSON trace logs in ./logs/
 
 # The trace files can then be analyzed using the web interface
 ```
@@ -115,8 +115,28 @@ result = compiled_kernel()  # This will generate trace logs in ./logs/
 
 **Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/)** to use the tool directly in your browser:
 
-1. **Open your local trace file** directly in the browser
+1. **Open your local trace file** (NDJSON or .gz format) directly in the browser
 2. **Explore the visualization** using the Overview and Code Comparison tabs
+
+**Supported File Formats:**
+- `.ndjson` - Newline Delimited JSON trace files
+- `.gz` - Gzip compressed trace files
+
+#### Interface Overview
+
+Once you load a trace file, you'll see the main interface with several key components:
+
+**Kernel Overview & Details:**
+
+![Kernel Overview](docs/screenshots/kernel-overview.png)
+
+*The main interface showing the kernel list, compilation metadata, call stack, and navigation links to different IR representations.*
+
+**Code Comparison View:**
+
+![Code Comparison](docs/screenshots/code-comparison.png)
+
+*Side-by-side comparison of different IR stages (e.g., TTGIR and PTX) with synchronized line highlighting and interactive navigation.*
 
 #### Option B: Local Development (For Contributors)
 
@@ -154,6 +174,9 @@ tritonparse/
 │   ├── package.json          # Node.js dependencies
 │   ├── vite.config.ts        # Vite configuration
 │   └── dist/                 # Built application (after build)
+├── docs/                     # Documentation and assets
+│   ├── README.md             # Documentation guidelines
+│   └── screenshots/          # Screenshots for README
 ├── tests/                    # Test files and example traces
 │   ├── test_add.py           # Example Triton kernel test
 │   ├── unit_tests.py         # Unit tests
@@ -241,12 +264,6 @@ Each stage can be inspected and compared to understand optimization transformati
 
 ```python
 tritonparse.structured_logging.init("/custom/log/path/")
-```
-
-### Source Mapping Extraction
-
-```bash
-python tritonparse/extract_source_mappings.py input.ndjson output_mapped.ndjson
 ```
 
 ## 🤝 Contributing
