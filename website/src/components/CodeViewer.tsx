@@ -24,6 +24,110 @@ SyntaxHighlighter.registerLanguage('python', python);
 const LARGE_FILE_THRESHOLD = 10000000;
 const EXTREMELY_LARGE_FILE_THRESHOLD = 10000000;
 
+// Global scroll position storage to persist across re-renders
+const scrollPositionStore = new Map<string, number>();
+
+/**
+ * Custom hook for managing scroll position and highlight changes
+ * Provides common scroll management functionality for code viewers
+ */
+const useScrollManagement = (
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  highlightedLines: number[],
+  viewerId: string | undefined,
+  fontSize: number,
+  customScrollToLine?: (lineNumber: number) => void
+) => {
+  const isRestoringScrollRef = useRef<boolean>(false);
+  const previousHighlightedLinesRef = useRef<number[]>([]);
+  const scrollKey = viewerId || 'default';
+
+  // Save scroll position on scroll
+  const saveScrollPosition = useCallback(() => {
+    if (!isRestoringScrollRef.current) {
+      const container = containerRef.current;
+      if (container) {
+        const scrollTop = container.scrollTop;
+        scrollPositionStore.set(scrollKey, scrollTop);
+      }
+    }
+  }, [containerRef, scrollKey]);
+
+  // Helper function to reset scroll flag after an operation
+  const resetScrollFlag = useCallback((delay: number = 10) => {
+    setTimeout(() => {
+      isRestoringScrollRef.current = false;
+    }, delay);
+  }, []);
+
+  // Helper function to perform direct scroll with retry mechanism
+  const performDirectScroll = useCallback((container: HTMLDivElement, targetPosition: number) => {
+    container.scrollTop = targetPosition;
+
+    // Use requestAnimationFrame for better reliability
+    requestAnimationFrame(() => {
+      container.scrollTop = targetPosition;
+      resetScrollFlag(10);
+    });
+  }, [resetScrollFlag]);
+
+  // Monitor highlight changes and handle scrolling
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Check if this is a highlight change (not initial render)
+    const prevLines = previousHighlightedLinesRef.current;
+    const currentLines = highlightedLines;
+
+    const isHighlightChange =
+      prevLines.length > 0 || currentLines.length > 0; // Either had highlights before or has now
+    
+    // Check if this is truly a NEW highlight change (lines actually changed)
+    const linesChanged = JSON.stringify(prevLines) !== JSON.stringify(currentLines);
+
+    if (!isHighlightChange || !linesChanged) {
+      // Update previous highlights and exit early
+      previousHighlightedLinesRef.current = [...currentLines];
+      return;
+    }
+
+    // Set flag to prevent scroll position saving during programmatic scrolling
+    isRestoringScrollRef.current = true;
+
+    if (currentLines.length > 0) {
+      // If we have new highlighted lines, scroll to show the first one
+      const firstHighlightedLine = Math.min(...currentLines);
+
+      if (customScrollToLine) {
+        // Use custom scroll function (for large files with smooth scrolling)
+        customScrollToLine(firstHighlightedLine);
+        resetScrollFlag(100);
+      } else {
+        // Use direct scroll positioning (for standard files)
+        const lineHeight = Math.ceil(fontSize * 1.5);
+        const targetScrollPosition = Math.max(0, (firstHighlightedLine - 1) * lineHeight);
+        performDirectScroll(container, targetScrollPosition);
+      }
+    } else {
+      // If clearing highlights, restore the saved scroll position
+      const savedScrollPosition = scrollPositionStore.get(scrollKey) || 0;
+      if (savedScrollPosition > 0) {
+        performDirectScroll(container, savedScrollPosition);
+      } else {
+        resetScrollFlag();
+      }
+    }
+
+    // Update previous highlights
+    previousHighlightedLinesRef.current = [...currentLines];
+  }, [highlightedLines, scrollKey, fontSize, customScrollToLine, resetScrollFlag, performDirectScroll]);
+
+  return {
+    saveScrollPosition
+  };
+};
+
 /**
  * Props for the CodeViewer component
  */
@@ -192,6 +296,30 @@ const LargeFileViewer: React.FC<CodeViewerProps> = ({
   const lines = splitIntoLines(code);
   const lineHeight = Math.ceil(fontSize * 1.5); // Approximate line height based on font size
 
+  // Function to scroll to a specific line
+  const scrollToLine = useCallback((lineNumber: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Calculate position to scroll to
+    const scrollPosition = (lineNumber - 1) * lineHeight;
+
+    // Scroll with smooth behavior
+    container.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth'
+    });
+  }, [lineHeight]);
+
+  // Use the common scroll management hook
+  const { saveScrollPosition } = useScrollManagement(
+    containerRef,
+    highlightedLines,
+    viewerId,
+    fontSize,
+    scrollToLine // Pass custom scroll function for large files
+  );
+
   // Use useCallback to memoize the scroll handler
   const updateVisibleLines = useCallback(() => {
     const container = containerRef.current;
@@ -222,6 +350,12 @@ const LargeFileViewer: React.FC<CodeViewerProps> = ({
   // Create a debounced version of the update function for scroll events
   const debouncedUpdate = useRef(debounce(updateVisibleLines, 10)).current;
 
+  // Combined scroll handler that updates visible range and saves position
+  const handleScroll = useCallback(() => {
+    saveScrollPosition();
+    debouncedUpdate();
+  }, [debouncedUpdate, saveScrollPosition]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -229,29 +363,14 @@ const LargeFileViewer: React.FC<CodeViewerProps> = ({
     // Initial update without debounce
     updateVisibleLines();
 
-    // Add scroll listener with debounce for better performance
-    container.addEventListener('scroll', debouncedUpdate);
+    // Add scroll listener with both position saving and visible range update
+    container.addEventListener('scroll', handleScroll, { passive: true });
 
     // Cleanup
     return () => {
-      container.removeEventListener('scroll', debouncedUpdate);
+      container.removeEventListener('scroll', handleScroll);
     };
-  }, [updateVisibleLines, debouncedUpdate]);
-
-  // Function to scroll to a specific line
-  const scrollToLine = useCallback((lineNumber: number) => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    // Calculate position to scroll to
-    const scrollPosition = (lineNumber - 1) * lineHeight;
-
-    // Scroll with smooth behavior
-    container.scrollTo({
-      top: scrollPosition,
-      behavior: 'smooth'
-    });
-  }, [lineHeight]);
+  }, [updateVisibleLines, handleScroll]);
 
   // Enhanced line click handler that processes source mapping
   const handleLineClick = useCallback((lineNumber: number) => {
@@ -270,20 +389,7 @@ const LargeFileViewer: React.FC<CodeViewerProps> = ({
   // Calculate offsets for line numbers and highlighting
   const lineNumberOffset = visibleRange.start + 1;
 
-  // Check if we need to scroll to a highlighted line that's outside the visible range
-  useEffect(() => {
-    if (highlightedLines.length > 0) {
-      const firstHighlight = highlightedLines[0];
-
-
-      // Check if the highlighted line is outside the current visible range
-      if (firstHighlight < visibleRange.start + 5 || firstHighlight > visibleRange.end - 5) {
-
-        // Scroll to show the highlighted line
-        scrollToLine(firstHighlight);
-      }
-    }
-  }, [highlightedLines, visibleRange, scrollToLine]);
+  // Note: Scroll management is now handled by the useScrollManagement hook
 
   return (
     <div
@@ -369,8 +475,27 @@ const StandardCodeViewer: React.FC<CodeViewerProps> = ({
   onLineClick,
   viewerId,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Use the common scroll management hook (no custom scroll function for standard viewer)
+  const { saveScrollPosition } = useScrollManagement(
+    containerRef,
+    highlightedLines,
+    viewerId,
+    fontSize
+  );
+
   // Map the language to the appropriate highlighter language
   const highlighterLanguage = mapLanguageToHighlighter(language);
+
+  // Save scroll position on scroll
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.addEventListener('scroll', saveScrollPosition, { passive: true });
+    return () => container.removeEventListener('scroll', saveScrollPosition);
+  }, [saveScrollPosition]);
 
   // Enhanced line click handler that processes source mapping
   const handleLineClick = useCallback((lineNumber: number) => {
@@ -379,39 +504,15 @@ const StandardCodeViewer: React.FC<CodeViewerProps> = ({
     }
   }, [onLineClick, viewerId]);
 
-  /**
-   * Configures styling and behavior for each line of code
-   * Creates custom styling for highlighted lines and handles click events
-   * @param lineNumber - The line number to configure properties for
-   * @returns Props object with style and click handler
-   */
-  const lineProps = (lineNumber: number) => {
-    // Create styles for the line
-    const style: React.CSSProperties = {
-      display: "block",
-      cursor: onLineClick ? "pointer" : "text",
-    };
-
-    // Apply background color if this line should be highlighted
-    const isHighlighted = highlightedLines.includes(lineNumber);
-    if (isHighlighted) {
-      // Use a more vibrant highlight color with better contrast
-      style.backgroundColor = theme === "light"
-        ? "rgba(255, 215, 0, 0.4)" // More golden yellow for light theme
-        : "rgba(255, 215, 0, 0.3)"; // Similar but slightly dimmer for dark theme
-      style.borderLeft = "3px solid orange"; // Add left border for better visibility
-      style.paddingLeft = "6px"; // Add some padding to offset the border
-    }
-
-    return {
-      style,
-      onClick: () => handleLineClick(lineNumber),
-    };
-  };
-
   return (
     <div
-      style={{ height, overflowY: "auto", fontSize: `${fontSize}px` }}
+      ref={containerRef}
+      style={{
+        height,
+        overflowY: "auto",
+        fontSize: `${fontSize}px`,
+        backgroundColor: theme === "light" ? "#fff" : "#1E1E1E"
+      }}
       className={`code-viewer ${highlightedLines.length > 0 ? 'has-highlights' : ''}`}
       data-viewer-id={viewerId}
       data-highlighted-lines={highlightedLines.join(',')}
@@ -419,14 +520,37 @@ const StandardCodeViewer: React.FC<CodeViewerProps> = ({
       <SyntaxHighlighter
         language={highlighterLanguage}
         style={theme === "light" ? oneLight : oneDark}
-        showLineNumbers
-        wrapLines
-        lineProps={lineProps}
         customStyle={{
           margin: 0,
-          fontSize: "inherit",
-          height: "100%",
-          backgroundColor: theme === "light" ? "#fff" : "#1E1E1E",
+          padding: "0.5em",
+          fontSize: `${fontSize}px`,
+          backgroundColor: "transparent",
+          overflow: "visible",
+        }}
+        showLineNumbers={true}
+        lineNumberStyle={{
+          userSelect: "none",
+          opacity: 0.5,
+          fontSize: `${fontSize}px`,
+          color: theme === "light" ? "#666" : "#aaa"
+        }}
+        wrapLines={true}
+        lineProps={(lineNumber) => {
+          const isHighlighted = highlightedLines.includes(lineNumber);
+          return {
+            style: {
+              backgroundColor: isHighlighted
+                ? "rgba(255, 215, 0, 0.4)" // Golden yellow highlight
+                : "transparent",
+              borderLeft: isHighlighted ? "3px solid orange" : "none",
+              cursor: onLineClick ? "pointer" : "text",
+              display: "block",
+              width: "100%",
+            },
+            onClick: () => handleLineClick(lineNumber),
+            "data-line-number": lineNumber,
+            className: isHighlighted ? 'highlighted-line' : '',
+          };
         }}
       >
         {code}
@@ -441,10 +565,8 @@ const StandardCodeViewer: React.FC<CodeViewerProps> = ({
  * Automatically chooses between standard, optimized, or basic viewer based on code size.
  */
 const CodeViewer: React.FC<CodeViewerProps> = (props) => {
-  // Add debug log to monitor props changes
+  // Add inline style for highlighted lines to ensure they're visible
   useEffect(() => {
-
-    // Add inline style for highlighted lines to ensure they're visible
     if (props.highlightedLines && props.highlightedLines.length > 0) {
       const styleId = `highlight-style-${props.viewerId || 'default'}`;
       let styleEl = document.getElementById(styleId) as HTMLStyleElement;
