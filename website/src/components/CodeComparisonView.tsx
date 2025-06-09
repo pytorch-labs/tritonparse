@@ -201,16 +201,19 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
         (lineNumber: number, panel: 'left' | 'right') => {
             // Determine source and target based on which panel was clicked
             const isLeftPanel = panel === 'left';
-            const setSourceHighlightedLines = isLeftPanel ? setLeftHighlightedLines : setRightHighlightedLines;
-            const setTargetHighlightedLines = isLeftPanel ? setRightHighlightedLines : setLeftHighlightedLines;
             const sourceMapping = isLeftPanel ? leftPanel_data.sourceMapping : rightPanel_data.sourceMapping;
             const targetTitle = isLeftPanel ? rightPanel_data.title || "PTX" : leftPanel_data.title || "TTGIR";
-
-            // Set highlight on the source panel
-            setSourceHighlightedLines([lineNumber]);
+            
+            // Set highlight on the source panel first
+            if (isLeftPanel) {
+                setLeftHighlightedLines([lineNumber]);
+            } else {
+                setRightHighlightedLines([lineNumber]);
+            }
 
             // Find corresponding lines in target panel using source mappings
             if (leftPanel.code && rightPanel.code) {
+                const setTargetHighlightedLines = isLeftPanel ? setRightHighlightedLines : setLeftHighlightedLines;
                 handleMappedLinesFound(
                     sourceMapping,
                     lineNumber,
@@ -220,7 +223,11 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
 
             } else {
                 // Clear target panel highlights if no mapping exists
-                setTargetHighlightedLines([]);
+                if (isLeftPanel) {
+                    setRightHighlightedLines([]);
+                } else {
+                    setLeftHighlightedLines([]);
+                }
             }
 
             // Find corresponding Python lines if Python source is shown
@@ -247,10 +254,7 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
             handleMappedLinesFound,
             showPythonSource,
             py_code_info,
-            findPythonLines,
-            leftHighlightedLines,
-            rightHighlightedLines,
-            pythonHighlightedLines
+            findPythonLines
         ]
     );
 
@@ -301,14 +305,14 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
             highlightLines(rightPanel_data.title, 'right');
 
         },
-        [pythonMapping, leftHighlightedLines, rightHighlightedLines, pythonHighlightedLines]
+        [pythonMapping, py_start_line, leftPanel_data.title, rightPanel_data.title]
     );
 
 
     /**
      * A reusable code panel component
      */
-    const CodePanel: React.FC<{
+    const CodePanel = React.memo<{
         title: string;
         displayLanguage: string;
         code: string;
@@ -317,7 +321,7 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
         onLineClick: (lineNumber: number) => void;
         viewerId: string;
         otherViewerId?: string;
-    }> = ({
+    }>(({
         title,
         displayLanguage,
         code,
@@ -338,7 +342,7 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
                 code={code}
                 language={language}
                 height="calc(100% - 40px)"
-                highlightedLines={[...highlightedLines]}
+                highlightedLines={highlightedLines}
                 onLineClick={onLineClick}
                 theme="light"
                 fontSize={14}
@@ -346,7 +350,7 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
                 otherViewerId={otherViewerId}
             />
         </div>
-    );
+    ));
 
     // Render two or three panels based on whether Python source is available
     return (
