@@ -256,19 +256,19 @@ def extract_ptx_amdgcn_mappings(
     def get_file_path(filename: str) -> str:
         file_path = filename
         if not os.path.isabs(filename):
-            logger.warning(
+            logger.debug(
                 f"Filename '{filename}' does not contain a path. Attempting to resolve."
             )
             # Attempt to resolve the filename to a full path using referenced_files
             if filename in referenced_files:
                 if len(referenced_files[filename]) > 1:
-                    logger.warning(
+                    logger.debug(
                         f"Filename '{filename}' has multiple file paths. Using the first one."
                     )
                 file_path = list(referenced_files[filename])[0]
-                logger.warning(f"Resolved filename '{filename}' to {file_path}")
+                logger.debug(f"Resolved filename '{filename}' to {file_path}")
             else:
-                logger.warning(f"Filename '{filename}' not found in referenced files.")
+                logger.debug(f"Filename '{filename}' not found in referenced files.")
         return file_path
 
     # Regular expressions to match function start and end markers

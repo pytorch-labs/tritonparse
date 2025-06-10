@@ -48,7 +48,7 @@ class Rank:
             self.value = 0
             self.is_default = True
 
-    def to_string(self, prefix: str = "") -> str:
+    def to_string(self, prefix: str = "", suffix: str = "") -> str:
         """
         Convert rank to string representation with optional prefix.
 
@@ -60,7 +60,7 @@ class Rank:
         """
         if self.is_default:
             return ""
-        return f"{prefix}rank_{self.value}"
+        return f"{prefix}rank_{self.value}{suffix}"
 
     def to_int(self) -> int:
         """
@@ -297,7 +297,7 @@ def parse_logs(
                 file_mapping[rank_key]["regular_files"].extend(generated_files)
                 # this is used to generate the tritonparse url
                 file_mapping[rank_key]["rank_suffix"] = rank_config.to_rank().to_string(
-                    "/"
+                    suffix="/"
                 )
                 if mapped_file:
                     file_mapping[rank_key]["mapped_file"] = mapped_file
