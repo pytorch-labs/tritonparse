@@ -9,7 +9,17 @@ const packageJson = JSON.parse(
 
 export default defineConfig({
   plugins: [
-    react()
+    react(),
+    {
+      name: 'strip-module-attr',
+      enforce: 'post',
+      transformIndexHtml(html) {
+        return html.replace(
+          /<script\s+type=["']module["']\s+([^>]*?)src=/g,
+          '<script defer $1src='
+        )
+      }
+    }
   ],
 
   base: './',

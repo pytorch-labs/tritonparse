@@ -100,20 +100,21 @@ First, integrate TritonParse with your Triton/PyTorch code to generate trace fil
 
 ```python
 import torch
+# === TritonParse ===
 import tritonparse.structured_logging
-
 # Initialize structured logging to capture Triton compilation events
+# This will generate NDJSON trace logs in ./logs/
 tritonparse.structured_logging.init("./logs/")
+# === TritonParse end ===
 
+# The below is your original Triton/PyTorch 2 code
 # Example: Using with torch.compile
 def your_kernel():
     # Your PyTorch/Triton kernel code
     pass
 
 compiled_kernel = torch.compile(your_kernel)
-result = compiled_kernel()  # This will generate NDJSON trace logs in ./logs/
-
-# The trace files can then be analyzed using the web interface
+result = compiled_kernel()
 ```
 
 ### 2. Analyze with Web Interface
