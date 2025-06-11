@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
 import triton
-from triton.compiler import ASTSource, IRSource
 
 log = logging.getLogger(__name__)
 
@@ -179,9 +178,7 @@ def get_stack_trace(skip=1):
     return frames
 
 
-def extract_python_source_info(
-    trace_data: Dict[str, Any], source: Union[ASTSource, IRSource]
-):
+def extract_python_source_info(trace_data: Dict[str, Any], source):
     """
     Extract Python source code information from the source object and add it to trace_data.
 
@@ -194,6 +191,8 @@ def extract_python_source_info(
         source (Union[ASTSource, IRSource]): Source object containing kernel function information
     """
     # @TODO: add support for IRSource
+    from triton.compiler import IRSource
+
     if isinstance(source, IRSource):
         return
     # Get the original Python source code for the kernel
@@ -314,21 +313,19 @@ class TritonTraceHandler(logging.StreamHandler):
                     "TritonTraceHandler: disabled because justknobs_check('pytorch/trace:enable') returned False"
                 )
                 should_set_root_dir = False
-        else:
+        if should_set_root_dir:
             if not os.path.exists(TRACE_LOG_DIR):
                 log.info(
                     "TritonTraceHandler: disabled because %s does not exist",
                     TRACE_LOG_DIR,
                 )
-                should_set_root_dir = False
             elif not os.access(TRACE_LOG_DIR, os.W_OK):
                 log.info(
                     "TritonTraceHandler: disabled because %s is not writeable",
                     TRACE_LOG_DIR,
                 )
-                should_set_root_dir = False
-        if should_set_root_dir:
-            self.root_dir = TRACE_LOG_DIR
+            else:
+                self.root_dir = TRACE_LOG_DIR
         return self.root_dir
 
     def emit(self, record):
@@ -401,7 +398,7 @@ class TritonTraceHandler(logging.StreamHandler):
                 self.stream = None
 
 
-def _init_logs():
+def init_logs():
     """
     Initialize the logging system for Triton tracing.
 
@@ -466,9 +463,9 @@ def trace_structured_triton(
 
 
 def maybe_trace_triton(
-    src: Union[ASTSource, IRSource],
+    src,
     metadata: Dict[str, Any],
-    metadata_group: Dict[str, Any],
+    metadata_group: Dict[str, str],
     times: Any,
     event_type: str = "compilation",
     cache_hit: bool = False,
@@ -559,5 +556,5 @@ def init(trace_folder: Optional[str] = None):
         )
     if trace_folder is not None:
         triton_trace_folder = trace_folder
-    _init_logs()
+    init_logs()
     triton.knobs.compilation.listener = maybe_trace_triton
