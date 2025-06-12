@@ -9,10 +9,11 @@ TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python tests/test_add.py
 import torch
 import triton
 import triton.language as tl
-import tritonparse
 import tritonparse.structured_logging
+import tritonparse.utils
 
-tritonparse.structured_logging.init("./logs/")
+log_path = "./logs"
+tritonparse.structured_logging.init(log_path)
 
 
 @triton.jit
@@ -67,3 +68,4 @@ def test_tensor_add():
 
 if __name__ == "__main__":
     test_tensor_add()
+    tritonparse.utils.unified_parse(log_path)

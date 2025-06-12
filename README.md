@@ -14,11 +14,10 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
   - TTGIR (Triton GPU IR)
   - TTIR (Triton IR)
   - LLIR (LLVM IR)
-  - PTX (Parallel Thread Execution)
-  - AMDGCN (AMD GPU IR)
-- **Side-by-side Comparison**: Compare TTGIR and PTX code with synchronized highlighting
+  - PTX (NVIDIA)
+  - AMDGCN (AMD)
+- **Side-by-side Comparison**: Compare the above IR code with synchronized highlighting
 - **Interactive Code Views**: Click-to-highlight corresponding lines across different formats
-- **Source Mapping**: Trace relationships between different compilation stages
 
 ### Structured Logging
 
@@ -30,7 +29,6 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 ### Website Deployment Options
 
 - **GitHub Pages**: Automatic deployment with GitHub Actions
-- **Standalone Build**: Single HTML file with all assets inlined
 - **Local Development**: Full development environment setup
 
 ## 🛠️ Tech Stack
@@ -56,15 +54,10 @@ A comprehensive visualization and analysis tool for Triton IR files, designed to
 
 **Prerequisites:**
 
-- **Python** >= 3.8
+- **Python** >= 3.9
 - **Triton** > 3.3.1
 
-For now, you need to manually install latest Triton from source.
-```bash
-git clone https://github.com/triton-lang/triton
-cd triton
-pip install -e .
-```
+For now, you need to [manually compile latest Triton from source](https://github.com/triton-lang/triton?tab=readme-ov-file#install-from-source).
 
 **Quick Start:**
 
@@ -100,12 +93,13 @@ First, integrate TritonParse with your Triton/PyTorch code to generate trace fil
 
 ```python
 import torch
-# === TritonParse ===
+# === TritonParse init ===
 import tritonparse.structured_logging
 # Initialize structured logging to capture Triton compilation events
 # This will generate NDJSON trace logs in ./logs/
-tritonparse.structured_logging.init("./logs/")
-# === TritonParse end ===
+log_path = "./logs/"
+tritonparse.structured_logging.init(log_path)
+# === TritonParse init end ===
 
 # The below is your original Triton/PyTorch 2 code
 # Example: Using with torch.compile
@@ -115,6 +109,11 @@ def your_kernel():
 
 compiled_kernel = torch.compile(your_kernel)
 result = compiled_kernel()
+
+# === TritonParse parse ===
+import tritonparse.utils
+tritonparse.utils.unified_parse(log_path)
+# === TritonParse parse end ===
 ```
 
 ### 2. Analyze with Web Interface
@@ -152,6 +151,7 @@ For contributors working on the website:
 
 ```bash
 cd website
+npm install
 npm run dev
 ```
 
@@ -213,6 +213,11 @@ cd tests
 python test_add.py
 ```
 
+### Environment Variables
+
+- `TRITONPARSE_DEBUG=1` - Enable debug logging
+- `TRITONPARSE_NDJSON=1` - Output in NDJSON format (default)
+
 ### Website Development (For Contributors)
 
 **Start development server:**
@@ -260,19 +265,6 @@ TritonParse helps visualize the Triton compilation pipeline:
 6. **AMDGCN** → AMD GPU IR
 
 Each stage can be inspected and compared to understand optimization transformations.
-
-## 🔍 Advanced Features
-
-### Environment Variables
-
-- `TRITONPARSE_DEBUG=1` - Enable debug logging
-- `TRITONPARSE_NDJSON=1` - Output in NDJSON format (default)
-
-### Custom Log Directory
-
-```python
-tritonparse.structured_logging.init("/custom/log/path/")
-```
 
 ## 🤝 Contributing
 

@@ -157,7 +157,7 @@ def create_bidirectional_mapping(
         if target_line in target_map:
             target_map[target_line][f"{source_type}_lines"] = source_lines
 
-    logger.info(f"Created {source_type} to {target_type} mappings (and reverse)")
+    logger.debug(f"Created {source_type} to {target_type} mappings (and reverse)")
 
 
 def extract_loc_definitions(ir_content: str) -> Dict[str, Dict[str, Any]]:
@@ -294,7 +294,7 @@ def extract_ptx_amdgcn_mappings(
         )
         return mappings
 
-    logger.info(
+    logger.debug(
         f"Processing {ir_type} function from line {function_start_line} to {function_end_line}"
     )
 
@@ -382,10 +382,10 @@ def generate_source_mappings(
         return extract_ptx_amdgcn_mappings(ir_content, other_mappings, ir_type)
 
     loc_defs = extract_loc_definitions(ir_content)
-    logger.info(f"Found {len(loc_defs)} #loc definitions")
+    logger.debug(f"Found {len(loc_defs)} #loc definitions")
 
     loc_refs = extract_code_locations(ir_content)
-    logger.info(f"Found {len(loc_refs)} loc references")
+    logger.debug(f"Found {len(loc_refs)} loc references")
 
     mappings = {}
     for ln, loc_id in loc_refs.items():
@@ -419,7 +419,7 @@ def process_ir(
     # the key should be the full file name with extension for the IR files
     if not key:
         return {}
-    logger.info(f"Processing {key}")
+    logger.debug(f"Processing {key}")
     ir_content = file_content.get(key, None)
     if not ir_content:
         ir_file_path = file_path.get(key, None)
@@ -429,7 +429,7 @@ def process_ir(
         with open(ir_file_path, "r") as f:
             ir_content = f.read()
     mapping = generate_source_mappings(ir_content, key.split(".")[1], other_mappings)
-    logger.info(f"Generated source mapping for {key}")
+    logger.debug(f"Generated source mapping for {key}")
     return mapping
 
 
@@ -487,14 +487,14 @@ def parse_single_trace_content(trace_content: str) -> str:
                 create_bidirectional_mapping(
                     ir_maps[src_type], ir_maps[tgt_type], src_type, tgt_type
                 )
-                logger.info(
+                logger.debug(
                     f"Created bidirectional mapping between {src_type} and {tgt_type}"
                 )
 
     py_map = {}
 
     if "python_source" in payload:
-        logger.info(
+        logger.debug(
             f"Added Python source information (lines {payload['python_source']['start_line']}-{payload['python_source']['end_line']})"
         )
 
@@ -559,7 +559,7 @@ def parse_single_file(
         file_name = os.path.basename(file_path)
         file_name_without_extension = os.path.splitext(file_name)[0]
         for i, line in enumerate(f):
-            logger.info(f"Processing line {i + 1} in {file_path}")
+            logger.debug(f"Processing line {i + 1} in {file_path}")
             # Skip empty lines
             if not line.strip():
                 continue
@@ -591,7 +591,7 @@ def parse_single_file(
                 output_file_name = f"{file_name_without_extension}_mapped.ndjson"
             output_file = os.path.join(output_dir, output_file_name)
             outputs[output_file].append(parsed_line)
-            logger.info(f"output file: {output_file}")
+            logger.debug(f"output file: {output_file}")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

@@ -52,7 +52,7 @@ def init_parser():
     return parser
 
 
-def oss_parse(args) -> int:
+def oss_parse(args):
     """
     Main function for the parse subcommand. It is for OSS only.
 
@@ -91,3 +91,16 @@ def oss_parse(args) -> int:
     parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
     if args.out is not None:
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
+
+
+def unified_parse(parsed_log_dir: str):
+    parser = init_parser()
+    args = [parsed_log_dir, "--overwrite"]
+    if is_fbcode():
+        from tritonparse.fb.utils import fb_parse as parse
+
+        args.append("--overwrite-manifold")
+    else:
+        parse = oss_parse
+
+    parse(parser.parse_args(args))

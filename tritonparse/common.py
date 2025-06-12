@@ -316,6 +316,9 @@ def save_logs(out_dir: Path, parsed_logs: str, overwrite: bool, verbose: bool) -
         overwrite: Whether to overwrite existing logs
         verbose: Whether to print verbose information
     """
+    if not out_dir.is_absolute():
+        out_dir = out_dir.resolve()
+
     if out_dir.exists():
         if not overwrite:
             raise RuntimeError(
