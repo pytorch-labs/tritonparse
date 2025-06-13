@@ -367,7 +367,7 @@ function App() {
             {dataLoaded && kernels.length > 0 && !selectedIR && (
               <div className="flex space-x-4">
                 <button
-                  className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === "overview" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
+                  className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === "overview" ? "bg-blue-700 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
                     }`}
                   onClick={() => {
                     setActiveTab("overview");
@@ -384,7 +384,7 @@ function App() {
                   Kernel Overview
                 </button>
                 <button
-                  className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === "comparison" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-700"
+                  className={`px-3 py-2 text-sm font-medium rounded-md ${activeTab === "comparison" ? "bg-blue-700 text-white shadow-md" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
                     }`}
                   onClick={() => {
                     setActiveTab("comparison");

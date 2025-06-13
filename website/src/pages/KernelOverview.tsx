@@ -91,18 +91,18 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
         <h2 className="text-xl font-semibold mb-4 text-gray-800">
           Available Kernels
         </h2>
-        <div className="grid grid-cols-1 gap-2">
+        <div className="flex flex-wrap gap-2">
           {kernels.map((k, index) => (
             <button
               key={index}
-              className={`p-3 text-left rounded-md transition-colors ${
+              className={`px-4 py-2 text-sm rounded-md transition-colors whitespace-nowrap ${
                 index === selectedKernel
-                  ? "bg-blue-100 border border-blue-300"
-                  : "bg-gray-50 border border-gray-200 hover:bg-blue-50"
+                  ? "bg-blue-100 border border-blue-300 text-blue-800"
+                  : "bg-gray-50 border border-gray-200 hover:bg-blue-50 text-gray-800"
               }`}
               onClick={() => onSelectKernel(index)}
             >
-              <div className="font-medium text-gray-800">{k.name}</div>
+              <div className="font-medium">{k.name}</div>
             </button>
           ))}
         </div>
