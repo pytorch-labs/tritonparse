@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 #  Copyright (c) Meta Platforms, Inc. and affiliates.
 
+from tritonparse.utils import unified_parse
+
 
 def main():
-    from tritonparse.utils import unified_parse
     unified_parse()
 
 
