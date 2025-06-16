@@ -651,6 +651,7 @@ class LaunchHookImpl(LaunchHook):
         print(metadata.get())
 
     def enter(self, metadata):
+        print("enter", metadata.get())
         pass
 
     def exit(self, metadata):
