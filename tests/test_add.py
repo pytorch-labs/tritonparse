@@ -57,6 +57,7 @@ def test_tensor_add():
     # Test Triton kernel
     c_triton = tensor_add(a, b)
     c_triton.sum()
+    tensor_add(a, b)
     print("Triton kernel executed successfully")
 
     # Test torch.compile

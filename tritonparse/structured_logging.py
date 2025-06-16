@@ -259,18 +259,18 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                 # Check file size before reading to avoid memory issues
                 file_size = os.path.getsize(file_path)
                 if file_size > MAX_FILE_SIZE:
-                    trace_data["file_content"][ir_filename] = (
-                        f"<file too large: {file_size} bytes>"
-                    )
+                    trace_data["file_content"][
+                        ir_filename
+                    ] = f"<file too large: {file_size} bytes>"
                     continue
 
                 with open(file_path, "r") as f:
                     trace_data["file_content"][ir_filename] = f.read()
             except (UnicodeDecodeError, OSError) as e:
                 # add more specific error type
-                trace_data["file_content"][ir_filename] = (
-                    f"<error reading file: {str(e)}>"
-                )
+                trace_data["file_content"][
+                    ir_filename
+                ] = f"<error reading file: {str(e)}>"
                 log.debug(f"Error reading file {file_path}: {e}")
 
 
@@ -613,6 +613,50 @@ def maybe_trace_triton(
     return trace_data
 
 
+from triton.knobs import LaunchHook, JITHook
+
+
+def add_launch_metadata(grid, metadata, arg_dict):
+    return {"launch_metadata_tritonparse": (grid, metadata, arg_dict)}
+
+
+class JITHookImpl(JITHook):
+    def __init__(self):
+        self.trace_data = defaultdict(dict)
+
+    def __call__(
+        self,
+        *,
+        key: str,
+        repr: str,
+        fn,
+        compile,
+        is_manual_warmup: bool,
+        already_compiled: bool,
+    ) -> Optional[bool]:
+        launch_metadata_fn = fn.jit_function.launch_metadata
+        if launch_metadata_fn is not None:
+            log.warning(
+                f"launch_metadata_fn is not None: {launch_metadata_fn}. It will be overridden by tritonparse."
+            )
+        fn.jit_function.launch_metadata = add_launch_metadata
+        return True
+
+
+class LaunchHookImpl(LaunchHook):
+    def __init__(self):
+        self.trace_data = defaultdict(dict)
+
+    def __call__(self, metadata):
+        print(metadata.get())
+
+    def enter(self, metadata):
+        pass
+
+    def exit(self, metadata):
+        pass
+
+
 def init(trace_folder: Optional[str] = None):
     """
     Initialize the structured logging system for Triton compilation.
@@ -635,3 +679,7 @@ def init(trace_folder: Optional[str] = None):
         triton_trace_folder = trace_folder
     init_logs()
     triton.knobs.compilation.listener = maybe_trace_triton
+    launch_hook = LaunchHookImpl()
+    jit_hook = JITHookImpl()
+    triton.knobs.runtime.jit_post_compile_hook = jit_hook
+    triton.knobs.runtime.launch_enter_hook = launch_hook.enter
