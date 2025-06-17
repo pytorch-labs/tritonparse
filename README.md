@@ -102,19 +102,14 @@ tritonparse.structured_logging.init(log_path)
 # === TritonParse init end ===
 
 # The below is your original Triton/PyTorch 2 code
-# Example: Using with torch.compile
-def your_kernel():
-    # Your PyTorch/Triton kernel code
-    pass
-
-compiled_kernel = torch.compile(your_kernel)
-result = compiled_kernel()
+...
 
 # === TritonParse parse ===
 import tritonparse.utils
 tritonparse.utils.unified_parse(log_path)
 # === TritonParse parse end ===
 ```
+See a full example in [`tests/test_add.py`](https://github.com/pytorch-labs/tritonparse/blob/main/tests/test_add.py).
 
 ### 2. Analyze with Web Interface
 
