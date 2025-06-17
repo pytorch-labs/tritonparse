@@ -24,6 +24,11 @@ triton_trace_log = logging.getLogger("tritonparse_trace")
 triton_trace_folder = os.environ.get("TRITON_TRACE", None)
 # Enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
+# The compilation information will be stored to /logs/DEFAULT_TRACE_FILE_PREFIX by default
+# unless other flags disable or set another store. Add USER to avoid permission issues in shared servers.
+DEFAULT_TRACE_FILE_PREFIX = (
+    f"dedicated_log_triton_trace_{os.getenv('USER', 'unknown')}_"
+)
 TRITON_TRACE_HANDLER = None
 if importlib.util.find_spec("torch") is not None:
     TORCH_INSTALLED = True
@@ -277,7 +282,7 @@ class TritonTraceHandler(logging.StreamHandler):
     """
 
     def __init__(
-        self, root_dir: Optional[str] = None, prefix="dedicated_log_triton_trace_"
+        self, root_dir: Optional[str] = None, prefix=DEFAULT_TRACE_FILE_PREFIX
     ):
         logging.Handler.__init__(self)
         self.root_dir = root_dir
