@@ -29,6 +29,9 @@ TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"
 DEFAULT_TRACE_FILE_PREFIX = (
     f"dedicated_log_triton_trace_{os.getenv('USER', 'unknown')}_"
 )
+# Enable launch trace. WARNNING: it will overwrite launch_metadata for each triton kernel.
+TRITON_TRACE_LAUNCH = os.getenv("TRITON_TRACE_LAUNCH", None) in ["1", "true", "True"]
+
 TRITON_TRACE_HANDLER = None
 if importlib.util.find_spec("torch") is not None:
     TORCH_INSTALLED = True
@@ -573,7 +576,21 @@ def add_launch_metadata(grid, metadata, arg_dict):
 
 
 class JITHookImpl(JITHook):
+    """
+    JIT Hook implementation that overrides or sets the launch_metadata function for Triton kernels.
+    
+    This hook is essential for capturing detailed kernel launch information beyond the basic
+    metadata (like kernel name) that Triton provides by default. Without setting a custom
+    launch_metadata function, only minimal launch information is available as shown in:
+    https://github.com/triton-lang/triton/blob/7ce287dc24b43476cdeb30529089ac361564505d/python/triton/compiler/compiler.py#L504
+    
+    By intercepting the JIT compilation process and setting a custom launch_metadata function,
+    we can capture comprehensive runtime information including grid parameters, kernel metadata,
+    and argument dictionaries for detailed analysis and logging.
+    """
+    
     def __init__(self):
+        """Initialize the JIT hook with an empty trace data storage."""
         self.trace_data = defaultdict(dict)
 
     def __call__(
@@ -586,6 +603,24 @@ class JITHookImpl(JITHook):
         is_manual_warmup: bool,
         already_compiled: bool,
     ) -> Optional[bool]:
+        """
+        Override or set the launch_metadata function for the JIT-compiled kernel.
+        
+        This method is called during the JIT compilation process and allows us to
+        inject our custom launch_metadata function that will be used to collect
+        detailed kernel launch information.
+        
+        Args:
+            key: Unique identifier for the kernel
+            repr: String representation of the kernel
+            fn: The JIT function object
+            compile: Compilation function
+            is_manual_warmup: Whether this is a manual warmup call
+            already_compiled: Whether the kernel is already compiled
+            
+        Returns:
+            True to continue with compilation, None/False to skip
+        """
         launch_metadata_fn = fn.jit_function.launch_metadata
         if launch_metadata_fn is not None:
             log.warning(
@@ -596,17 +631,47 @@ class JITHookImpl(JITHook):
 
 
 class LaunchHookImpl(LaunchHook):
+    """
+    Launch Hook implementation for capturing and logging kernel launch metadata.
+    
+    This hook is responsible for intercepting kernel launches and extracting the detailed
+    metadata that was set up by the JITHookImpl. It provides entry point for
+    kernel execution, allowing comprehensive logging and analysis of kernel launches
+    including timing, parameters, and execution context.
+    
+    The metadata captured includes:
+    - Kernel name and function details
+    - Grid dimensions and launch parameters  
+    - Kernel arguments and their values
+    - Stream information
+    - Custom metadata added by the launch_metadata function
+    """
+    
     def __init__(self):
+        """Initialize the launch hook with an empty trace data storage."""
         self.trace_data = defaultdict(dict)
 
     def __call__(self, metadata):
+        """
+        Default call handler for kernel launch metadata.
+        
+        Args:
+            metadata: LazyDict containing kernel launch information
+        """
         print(metadata.get())
 
     def enter(self, metadata):
+        """
+        Handle kernel launch entry point.
+        
+        This method is called when a kernel is about to be launched, providing
+        access to all the launch metadata for logging, profiling, or analysis.
+        
+        Args:
+            metadata: LazyDict containing comprehensive launch information including
+                     kernel name, function, stream, grid parameters, and custom data
+        """
         print("enter", metadata.get())
-        pass
-
-    def exit(self, metadata):
         pass
 
 
@@ -632,7 +697,8 @@ def init(trace_folder: Optional[str] = None):
         triton_trace_folder = trace_folder
     init_logs()
     triton.knobs.compilation.listener = maybe_trace_triton
-    launch_hook = LaunchHookImpl()
-    jit_hook = JITHookImpl()
-    triton.knobs.runtime.jit_post_compile_hook = jit_hook
-    triton.knobs.runtime.launch_enter_hook = launch_hook.enter
+    if TRITON_TRACE_LAUNCH:
+        launch_hook = LaunchHookImpl()
+        jit_hook = JITHookImpl()
+        triton.knobs.runtime.jit_post_compile_hook = jit_hook
+        triton.knobs.runtime.launch_enter_hook = launch_hook.enter
