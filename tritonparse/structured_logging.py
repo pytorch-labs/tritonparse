@@ -5,9 +5,13 @@ import importlib
 import inspect
 import json
 import logging
+import math
 import os
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
@@ -129,18 +133,42 @@ def convert(obj):
     Returns:
         A serializable version of the input object where dataclasses are converted to dictionaries
     """
+    # 1. primitives that JSON already supports  -------------------------------
+    if obj is None or isinstance(obj, (bool, int, str)):
+        return obj
+
+    if isinstance(obj, float):
+        # JSON spec forbids NaN/Infinity – keep precision but stay valid
+        if math.isfinite(obj):
+            return obj
+        return str(obj)  # "NaN", "inf", "-inf"
+
+    # 2. simple containers ----------------------------------------------------
+    if isinstance(obj, (list, tuple)):
+        return [convert(x) for x in obj]
+
+    if isinstance(obj, (set, frozenset)):
+        return [convert(x) for x in sorted(obj, key=str)]
+
+    if isinstance(obj, Mapping):
+        return {str(k): convert(v) for k, v in obj.items()}
+
+    # 3. time, enum, path, bytes ---------------------------------------------
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+
+    if isinstance(obj, Enum):
+        return convert(obj.value)
+
+    if isinstance(obj, Path):
+        return str(obj)
+
     if is_dataclass(obj):
         return convert(
             asdict(obj)
         )  # Convert dataclass to dict and then process that dict
-    elif isinstance(obj, dict):
-        return {
-            k: convert(v) for k, v in obj.items()
-        }  # Process each key-value pair recursively
-    elif isinstance(obj, list):
-        return [convert(i) for i in obj]  # Process each list item recursively
-    else:
-        return obj  # Return primitive types as-is
+    log.warning(f"Unknown type: {type(obj)}")
+    return str(obj)  # Return primitive types as-is
 
 
 def maybe_enable_debug_logging():
@@ -571,8 +599,66 @@ def maybe_trace_triton(
 from triton.knobs import LaunchHook, JITHook
 
 
+def extract_arg_info(arg_dict):
+    """
+    Extract detailed information from kernel arguments, especially for PyTorch tensors.
+    
+    Args:
+        arg_dict: Dictionary of kernel arguments
+        
+    Returns:
+        Dictionary with extracted argument information including tensor properties
+    """
+    extracted_args = {}
+    
+    for arg_name, arg_value in arg_dict.items():
+        arg_info = {}
+        
+        # Check if it's a PyTorch tensor
+        if hasattr(arg_value, 'shape') and hasattr(arg_value, 'dtype'):
+            arg_info['type'] = 'tensor'
+            arg_info['shape'] = list(arg_value.shape)
+            arg_info['dtype'] = str(arg_value.dtype)
+            arg_info['device'] = str(arg_value.device)
+            arg_info['stride'] = list(arg_value.stride())
+            arg_info['numel'] = arg_value.numel()
+            arg_info['is_contiguous'] = arg_value.is_contiguous()
+            arg_info['element_size'] = arg_value.element_size()
+            arg_info['storage_offset'] = arg_value.storage_offset()
+            # Memory usage in bytes
+            arg_info['memory_usage'] = arg_value.numel() * arg_value.element_size()
+            # Add data_ptr for memory tracking (optional)
+            if hasattr(arg_value, 'data_ptr'):
+                arg_info['data_ptr'] = hex(arg_value.data_ptr())
+        # Handle scalar values
+        elif isinstance(arg_value, (int, float, bool)):
+            arg_info['type'] = type(arg_value).__name__
+            arg_info['value'] = arg_value
+        # Handle strings
+        elif isinstance(arg_value, str):
+            arg_info['type'] = 'str'
+            arg_info['value'] = arg_value
+            arg_info['length'] = len(arg_value)
+        # Handle other types
+        else:
+            arg_info['type'] = type(arg_value).__name__
+            # Try to convert to string for logging, but be safe about it
+            try:
+                arg_info['repr'] = str(arg_value)
+                if len(arg_info['repr']) > 200:  # Truncate very long representations
+                    arg_info['repr'] = arg_info['repr'][:200] + "..."
+            except:
+                arg_info['repr'] = f"<{type(arg_value).__name__} object>"
+                
+        extracted_args[arg_name] = arg_info
+    
+    return extracted_args
+
+
 def add_launch_metadata(grid, metadata, arg_dict):
-    return {"launch_metadata_tritonparse": (grid, metadata, arg_dict)}
+    # Extract detailed argument information
+    extracted_args = extract_arg_info(arg_dict)
+    return {"launch_metadata_tritonparse": (grid, metadata, extracted_args)}
 
 
 class JITHookImpl(JITHook):
@@ -588,10 +674,6 @@ class JITHookImpl(JITHook):
     we can capture comprehensive runtime information including grid parameters, kernel metadata,
     and argument dictionaries for detailed analysis and logging.
     """
-    
-    def __init__(self):
-        """Initialize the JIT hook with an empty trace data storage."""
-        self.trace_data = defaultdict(dict)
 
     def __call__(
         self,
@@ -624,7 +706,7 @@ class JITHookImpl(JITHook):
         launch_metadata_fn = fn.jit_function.launch_metadata
         if launch_metadata_fn is not None:
             log.warning(
-                f"launch_metadata_fn is not None: {launch_metadata_fn}. It will be overridden by tritonparse."
+                f"fn {fn} launch_metadata_fn is not None: {launch_metadata_fn}. It will be overridden by tritonparse."
             )
         fn.jit_function.launch_metadata = add_launch_metadata
         return True
@@ -646,19 +728,6 @@ class LaunchHookImpl(LaunchHook):
     - Stream information
     - Custom metadata added by the launch_metadata function
     """
-    
-    def __init__(self):
-        """Initialize the launch hook with an empty trace data storage."""
-        self.trace_data = defaultdict(dict)
-
-    def __call__(self, metadata):
-        """
-        Default call handler for kernel launch metadata.
-        
-        Args:
-            metadata: LazyDict containing kernel launch information
-        """
-        print(metadata.get())
 
     def enter(self, metadata):
         """
@@ -666,13 +735,33 @@ class LaunchHookImpl(LaunchHook):
         
         This method is called when a kernel is about to be launched, providing
         access to all the launch metadata for logging, profiling, or analysis.
-        
-        Args:
+        metadata format:
+
+                Args:
             metadata: LazyDict containing comprehensive launch information including
                      kernel name, function, stream, grid parameters, and custom data
+                     format: {'name': 'add_kernel', 'function': None, 'stream': 0,
+                              'launch_metadata_tritonparse': (grid, self.metadata, extracted_args)}
+                     where extracted_args contains detailed info for each argument:
+                     - For tensors: shape, dtype, device, stride, memory_usage, etc.
+                     - For scalars: type and value
+                     - For other types: type and string representation
+                 defined here:
+                 https://github.com/triton-lang/triton/blob/7ce287dc24b43476cdeb30529089ac361564505d/
+                 python/triton/compiler/compiler.py#L512.
         """
-        print("enter", metadata.get())
-        pass
+        trace_data = defaultdict(dict)
+        metadata_dict = metadata.get()
+        trace_data["name"] = metadata_dict["name"]
+        trace_data["function"] = metadata_dict["function"]
+        trace_data["stream"] = metadata_dict["stream"]
+        launch_metadata_tritonparse = metadata_dict.get("launch_metadata_tritonparse", None)
+        if launch_metadata_tritonparse is not None:
+            trace_data["grid"] = launch_metadata_tritonparse[0]
+            trace_data["metadata"] = launch_metadata_tritonparse[1]
+            trace_data["extracted_args"] = launch_metadata_tritonparse[2]  # Now contains detailed arg info
+        trace_structured_triton("launch", metadata_fn=lambda: convert(trace_data))
+        
 
 
 def init(trace_folder: Optional[str] = None):
