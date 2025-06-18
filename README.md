@@ -89,6 +89,8 @@ npm install
 
 ### 1. Generate Triton Trace Files
 
+Please refer to [wiki usage](https://github.com/pytorch-labs/tritonparse/wiki/Usage) for more details.
+
 First, integrate TritonParse with your Triton/PyTorch code to generate trace files:
 
 ```python
@@ -110,6 +112,18 @@ tritonparse.utils.unified_parse(log_path)
 # === TritonParse parse end ===
 ```
 See a full example in [`tests/test_add.py`](https://github.com/pytorch-labs/tritonparse/blob/main/tests/test_add.py).
+
+Exampled output:
+```bash
+% TORCHINDUCTOR_FX_GRAPH_CACHE=0 python test_add.py
+Triton kernel executed successfully
+Torch compiled function executed successfully
+WARNING:SourceMapping:No frame_id or frame_compile_id found in the payload.
+WARNING:SourceMapping:No frame_id or frame_compile_id found in the payload.
+tritonparse log file list: /tmp/tmpl1tp9fto/log_file_list.json
+```
+In our test example, it has two triton kernels: one is a pure triton kernel and the other is a PT2 compiled triton kernel. `TORCHINDUCTOR_FX_GRAPH_CACHE=0 ` is used to disable FX graph cache to let PT2 compiler compile the kernel every time. Otherwise, the final parsed log files will only contain the first triton kernel.
+The final parsed gz files are stored in the `/tmp/tmpl1tp9fto/` directory. The `./logs` directory contains the raw NDJSON logs without source code mapping.
 
 ### 2. Analyze with Web Interface
 
@@ -281,8 +295,8 @@ This project is licensed under the BSD-3 License - see the [LICENSE](LICENSE) fi
 ## 📞 Support
 
 - **Issues**: [GitHub Issues](https://github.com/pytorch-labs/tritonparse/issues)
-- **Live Tool**: [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/)
-- **Examples**: Check the `tests/` directory for usage examples
+- **Discussions**: [GitHub Discussions](https://github.com/pytorch-labs/tritonparse/discussions)
+- **Wiki**: [TritonParse Wiki](https://github.com/pytorch-labs/tritonparse/wiki)
 
 ---
 
