@@ -319,6 +319,22 @@ class TritonJsonFormatter(logging.Formatter):
             # NDJSON format requires a newline at the end of each line
             return json.dumps(clean_log_entry, separators=(",", ":")) + "\n"
 
+def extrac_metadata_from_src(trace_data, src):
+    from triton._C.libtriton import get_cache_invalidating_env_vars
+
+    env_vars = get_cache_invalidating_env_vars()
+    # extra_options = src.parse_options()
+    # options = backend.parse_options(dict(options or dict(), **extra_options))
+
+    # trace_data["extra_options"] = extra_options
+    trace_data["metadata"].update(
+        {
+            "env": env_vars,
+            "src_attrs": src.attrs if hasattr(src, "attrs") else {},
+            "src_cache_key": src.fn.cache_key if hasattr(src, "fn") else "",
+            "src_constants": src.constants if hasattr(src, "constants") else {},
+        }
+    )
 
 class TritonTraceHandler(logging.StreamHandler):
     """
@@ -604,6 +620,10 @@ def maybe_trace_triton(
     # Extract Python source code information if available
     extract_python_source_info(trace_data, src)
     extrac_metadata_from_src(trace_data, src)
+
+    # Add timing information if available
+    if times:
+        trace_data["times"] = times
 
     # Add timing information if available
     if times:
