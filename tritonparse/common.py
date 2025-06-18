@@ -168,13 +168,31 @@ def copy_local_to_tmpdir(local_path: str, verbose: bool = False) -> str:
     Copy local log files to a temporary directory.
 
     Args:
-        local_path: Path to local directory containing logs
+        local_path: Path to local directory or single file containing logs
         verbose: Whether to print verbose information
 
     Returns:
         Path to temporary directory containing copied logs
+
+    Raises:
+        RuntimeError: If the local_path does not exist
     """
+    if not os.path.exists(local_path):
+        raise RuntimeError(f"Path does not exist: {local_path}")
+
     temp_dir = tempfile.mkdtemp()
+
+    # Handle single file case
+    if os.path.isfile(local_path):
+        if os.path.basename(local_path).startswith(LOG_PREFIX):
+            if verbose:
+                logger.info(f"Copying single file {local_path} to {temp_dir}")
+            shutil.copy2(local_path, temp_dir)
+        return temp_dir
+
+    # Handle directory case
+    if not os.path.isdir(local_path):
+        raise RuntimeError(f"Path is neither a file nor a directory: {local_path}")
 
     for item in os.listdir(local_path):
         item_path = os.path.join(local_path, item)
@@ -317,13 +335,6 @@ def save_logs(out_dir: Path, parsed_logs: str, overwrite: bool, verbose: bool) -
     """
     if not out_dir.is_absolute():
         out_dir = out_dir.resolve()
-
-    if out_dir.exists():
-        if not overwrite:
-            raise RuntimeError(
-                f"{out_dir} already exists, pass --overwrite to overwrite"
-            )
-        shutil.rmtree(out_dir)
 
     os.makedirs(out_dir, exist_ok=True)
 

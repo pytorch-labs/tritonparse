@@ -66,6 +66,17 @@ def oss_parse(args):
     source = Source(args.source, verbose)
     rank_config = RankConfig.from_cli_args(args.rank, args.all_ranks, source.type)
 
+    # Check output directory early if specified
+    if args.out is not None:
+        out_dir = Path(args.out)
+        if out_dir.exists():
+            if not args.overwrite:
+                raise RuntimeError(
+                    f"{out_dir} already exists, pass --overwrite to overwrite"
+                )
+            shutil.rmtree(out_dir)
+        os.makedirs(out_dir, exist_ok=True)
+
     # For signpost logging (not implemented in Python version)
 
     if source.type == SourceType.LOCAL:
@@ -75,18 +86,8 @@ def oss_parse(args):
 
     elif source.type == SourceType.LOCAL_FILE:
         local_path = source.value
-
-        if args.out is not None:
-            out_dir = Path(args.out)
-            if out_dir.exists():
-                if not args.overwrite:
-                    raise RuntimeError(
-                        f"{out_dir} already exists, pass --overwrite to overwrite"
-                    )
-                shutil.rmtree(out_dir)
-
-            os.makedirs(out_dir, exist_ok=True)
-            return
+        # Copy the single file to a temp directory, then parse it
+        logs = copy_local_to_tmpdir(local_path, verbose)
 
     parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
     if args.out is not None:
