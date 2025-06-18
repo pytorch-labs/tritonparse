@@ -96,7 +96,7 @@ def oss_parse(args):
 def unified_parse(log_dir: str, output_dir: str = None, overwrite: bool = True, overwrite_manifold: bool = True, **kwargs):
     """
     Unified parse function that provides a flexible interface for parsing triton logs.
-    
+
     Args:
         log_dir: Input directory containing logs to parse
         output_dir: Output directory for parsed results. If None, results won't be saved to a specific location
@@ -106,17 +106,21 @@ def unified_parse(log_dir: str, output_dir: str = None, overwrite: bool = True, 
     """
     parser = init_parser()
     args = [log_dir]
-    
+
     if output_dir:
         args.extend(["-o", output_dir])
-    
+
     if overwrite:
         args.append("--overwrite")
-    
+
     # Handle additional kwargs
+    if kwargs.get("rank", None):
+        args.extend(["-r", kwargs.get("rank")])
+    if kwargs.get("all_ranks", False):
+        args.append("--all-ranks")
     if kwargs.get("verbose", False):
         args.append("--verbose")
-    
+
     if is_fbcode():
         from tritonparse.fb.utils import fb_parse as parse
         if overwrite_manifold:
