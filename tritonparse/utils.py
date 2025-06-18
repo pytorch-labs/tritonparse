@@ -93,14 +93,36 @@ def oss_parse(args):
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
 
 
-def unified_parse(parsed_log_dir: str):
+def unified_parse(args=None):
+    """
+    Unified parsing function that handles both fbcode and OSS environments.
+
+    This function provides a single entry point for parsing triton logs,
+    automatically selecting the appropriate parsing backend (fb_parse or oss_parse)
+    based on the current environment.
+
+    Args:
+        args: Optional argument. Can be:
+            - None: Will parse command line arguments automatically
+            - str: Treated as parsed_log_dir path, will add --overwrite flag
+            - argparse.Namespace: Pre-parsed arguments object
+
+    Returns:
+        None
+
+    Raises:
+        RuntimeError: If parsing fails or required arguments are missing
+    """
     parser = init_parser()
-    args = [parsed_log_dir, "--overwrite"]
+    if args is None:
+        args = parser.parse_args()
+    elif isinstance(args, str):
+        # If args is a string, treat it as parsed_log_dir
+        args = parser.parse_args([args, "--overwrite"])
+
     if is_fbcode():
         from tritonparse.fb.utils import fb_parse as parse
-
-        args.append("--overwrite-manifold")
     else:
         parse = oss_parse
 
-    parse(parser.parse_args(args))
+    parse(args)
