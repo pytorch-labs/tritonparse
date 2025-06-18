@@ -94,36 +94,35 @@ def oss_parse(args):
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
 
 
-def unified_parse(args=None):
+def unified_parse(log_dir: str, output_dir: str = None, overwrite: bool = True, overwrite_manifold: bool = True, **kwargs):
     """
-    Unified parsing function that handles both fbcode and OSS environments.
-
-    This function provides a single entry point for parsing triton logs,
-    automatically selecting the appropriate parsing backend (fb_parse or oss_parse)
-    based on the current environment.
-
+    Unified parse function that provides a flexible interface for parsing triton logs.
+    
     Args:
-        args: Optional argument. Can be:
-            - None: Will parse command line arguments automatically
-            - str: Treated as parsed_log_dir path, will add --overwrite flag
-            - argparse.Namespace: Pre-parsed arguments object
-
-    Returns:
-        None
-
-    Raises:
-        RuntimeError: If parsing fails or required arguments are missing
+        log_dir: Input directory containing logs to parse
+        output_dir: Output directory for parsed results. If None, results won't be saved to a specific location
+        overwrite: Whether to overwrite existing output directory
+        overwrite_manifold: Whether to overwrite existing manifold output directory
+        **kwargs: Additional arguments like rank, all_ranks, verbose, etc.
     """
     parser = init_parser()
-    if args is None:
-        args = parser.parse_args()
-    elif isinstance(args, str):
-        # If args is a string, treat it as parsed_log_dir
-        args = parser.parse_args([args, "--overwrite"])
-
+    args = [log_dir]
+    
+    if output_dir:
+        args.extend(["-o", output_dir])
+    
+    if overwrite:
+        args.append("--overwrite")
+    
+    # Handle additional kwargs
+    if kwargs.get("verbose", False):
+        args.append("--verbose")
+    
     if is_fbcode():
         from tritonparse.fb.utils import fb_parse as parse
+        if overwrite_manifold:
+            args.append("--overwrite-manifold")
     else:
         parse = oss_parse
 
-    parse(args)
+    parse(parser.parse_args(args))
