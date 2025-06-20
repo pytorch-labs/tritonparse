@@ -68,4 +68,5 @@ def test_tensor_add():
 
 if __name__ == "__main__":
     test_tensor_add()
-    tritonparse.utils.unified_parse(log_path)
+    # Use improved unified_parse with explicit output directory
+    tritonparse.utils.unified_parse(log_path, output_dir="./parsed_output")
