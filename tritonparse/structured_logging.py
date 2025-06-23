@@ -5,11 +5,14 @@ import importlib
 import inspect
 import json
 import logging
+import math
 import os
 from collections import defaultdict
 from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
+from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Union
 
 import triton
 
@@ -126,18 +129,42 @@ def convert(obj):
     Returns:
         A serializable version of the input object where dataclasses are converted to dictionaries
     """
+    # 1. primitives that JSON already supports  -------------------------------
+    if obj is None or isinstance(obj, (bool, int, str)):
+        return obj
+
+    if isinstance(obj, float):
+        # JSON spec forbids NaN/Infinity – keep precision but stay valid
+        if math.isfinite(obj):
+            return obj
+        return str(obj)  # "NaN", "inf", "-inf"
+
+    # 2. simple containers ----------------------------------------------------
+    if isinstance(obj, (list, tuple)):
+        return [convert(x) for x in obj]
+
+    if isinstance(obj, (set, frozenset)):
+        return [convert(x) for x in sorted(obj, key=str)]
+
+    if isinstance(obj, Mapping):
+        return {str(k): convert(v) for k, v in obj.items()}
+
+    # 3. time, enum, path, bytes ---------------------------------------------
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+
+    if isinstance(obj, Enum):
+        return convert(obj.value)
+
+    if isinstance(obj, Path):
+        return str(obj)
+
     if is_dataclass(obj):
         return convert(
             asdict(obj)
         )  # Convert dataclass to dict and then process that dict
-    elif isinstance(obj, dict):
-        return {
-            k: convert(v) for k, v in obj.items()
-        }  # Process each key-value pair recursively
-    elif isinstance(obj, list):
-        return [convert(i) for i in obj]  # Process each list item recursively
-    else:
-        return obj  # Return primitive types as-is
+    log.warning(f"Unknown type: {type(obj)}")
+    return str(obj)  # Return primitive types as-is
 
 
 def maybe_enable_debug_logging():
@@ -245,6 +272,24 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                     f"<error reading file: {str(e)}>"
                 )
                 log.debug(f"Error reading file {file_path}: {e}")
+
+
+def extrac_metadata_from_src(trace_data, src):
+    from triton._C.libtriton import get_cache_invalidating_env_vars
+
+    env_vars = get_cache_invalidating_env_vars()
+    # extra_options = src.parse_options()
+    # options = backend.parse_options(dict(options or dict(), **extra_options))
+
+    # trace_data["extra_options"] = extra_options
+    trace_data["metadata"].update(
+        {
+            "env": env_vars,
+            "src_attrs": src.attrs if hasattr(src, "attrs") else {},
+            "src_cache_key": src.fn.cache_key if hasattr(src, "fn") else "",
+            "src_constants": src.constants if hasattr(src, "constants") else {},
+        }
+    )
 
 
 class TritonJsonFormatter(logging.Formatter):
@@ -552,10 +597,13 @@ def maybe_trace_triton(
         trace_data["pt_info"]["attempt"] = trace_id.attempt
     # Extract content from all IR and other files in the metadata group
     extract_file_content(trace_data, metadata_group)
-
     # Extract Python source code information if available
     extract_python_source_info(trace_data, src)
+    extrac_metadata_from_src(trace_data, src)
 
+    # Add timing information if available
+    if times:
+        trace_data["times"] = times
     # Log the collected information through the tracing system
     trace_structured_triton(
         event_type,

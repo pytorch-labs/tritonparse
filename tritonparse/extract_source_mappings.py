@@ -583,7 +583,7 @@ def parse_single_file(
                 if frame_id is not None or frame_compile_id is not None:
                     output_file_name = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{compiled_autograd_id}.ndjson"
                 else:
-                    logger.warning(
+                    logger.debug(
                         "No frame_id or frame_compile_id found in the payload."
                     )
                     output_file_name = f"{file_name_without_extension}_mapped.ndjson"
