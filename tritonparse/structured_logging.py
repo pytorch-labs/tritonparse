@@ -1,6 +1,7 @@
 #  Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import atexit
+import gzip
 import importlib
 import inspect
 import json
@@ -22,6 +23,8 @@ TEXT_FILE_EXTENSIONS = [".ttir", ".ttgir", ".llir", ".ptx", ".amdgcn", ".json"]
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit for file content extraction
 # Enable ndjson output. json format is only for debugging purpose.
 TRITONPARSE_NDJSON = os.getenv("TRITONPARSE_NDJSON", "1") in ["1", "true", "True"]
+# Enable gzip compression for each line in trace files
+TRITON_TRACE_GZIP = os.getenv("TRITON_TRACE_GZIP", "0") in ["1", "true", "True"]
 triton_trace_log = logging.getLogger("tritonparse_trace")
 # The folder to store the triton trace log.
 triton_trace_folder = os.environ.get("TRITON_TRACE", None)
@@ -313,7 +316,8 @@ class TritonJsonFormatter(logging.Formatter):
             return json.dumps(clean_log_entry, indent=2)
         else:
             # NDJSON format requires a newline at the end of each line
-            return json.dumps(clean_log_entry, separators=(",", ":")) + "\n"
+            json_str = json.dumps(clean_log_entry, separators=(",", ":"))
+            return json_str + "\n"
 
 
 class TritonTraceHandler(logging.StreamHandler):
@@ -394,12 +398,19 @@ class TritonTraceHandler(logging.StreamHandler):
                             ranksuffix = f"rank_{dist.get_rank()}_"
                     filename = f"{self.prefix}{ranksuffix}"
                     self._ensure_stream_closed()
+                    # Choose file extension and mode based on compression setting
+                    if TRITON_TRACE_GZIP:
+                        file_extension = ".bin.ndjson"
+                        file_mode = "ab+"  # Binary mode for gzip member concatenation
+                    else:
+                        file_extension = ".ndjson"
+                        file_mode = "a+"
                     log_file_name = os.path.abspath(
-                        os.path.join(root_dir, f"{filename}.ndjson")
+                        os.path.join(root_dir, f"{filename}{file_extension}")
                     )
                     self.stream = open(
                         log_file_name,
-                        mode="a+",
+                        mode=file_mode,
                     )
                     log.debug("TritonTraceHandler: logging to %s", log_file_name)
                 else:
@@ -408,7 +419,18 @@ class TritonTraceHandler(logging.StreamHandler):
 
             if self.stream:
                 formatted = self.format(record)
-                self.stream.write(formatted)
+                if TRITON_TRACE_GZIP:
+                    # Create a separate gzip member for each record
+                    # This allows standard gzip readers to handle member concatenation automatically
+                    import io
+                    buffer = io.BytesIO()
+                    with gzip.GzipFile(fileobj=buffer, mode='wb') as gz:
+                        gz.write(formatted.encode('utf-8'))
+                    # Write the complete gzip member to the file
+                    compressed_data = buffer.getvalue()
+                    self.stream.write(compressed_data)
+                else:
+                    self.stream.write(formatted)
                 self.flush()
         except Exception as e:
             # record exception and ensure resources are released
