@@ -176,14 +176,28 @@ def maybe_enable_debug_logging():
     """
     This logging is for logging module itself, not for logging the triton compilation.
     """
-    if TRITONPARSE_DEBUG and not log.hasHandlers():
-        log_handler = logging.StreamHandler()
-        log_handler.setLevel(logging.DEBUG)
-        log_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
+    if TRITONPARSE_DEBUG:
+        # Always set debug level if TRITONPARSE_DEBUG is set
         log.setLevel(logging.DEBUG)
-        log.addHandler(log_handler)
+        
+        # Prevent propagation to root logger to avoid duplicate messages
+        log.propagate = False
+        
+        # Check if we already have a debug handler
+        has_debug_handler = any(
+            isinstance(handler, logging.StreamHandler) 
+            and handler.level <= logging.DEBUG
+            for handler in log.handlers
+        )
+        
+        if not has_debug_handler:
+            log_handler = logging.StreamHandler()
+            log_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter("%(asctime)s[%(levelname)s] %(message)s")
+            formatter.default_time_format = '%Y%m%d %H:%M:%S'
+            formatter.default_msec_format = None
+            log_handler.setFormatter(formatter)
+            log.addHandler(log_handler)
 
 
 def get_stack_trace(skip=1):
