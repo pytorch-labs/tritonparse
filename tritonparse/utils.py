@@ -4,6 +4,7 @@ import argparse
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 
 # argument parser for OSS
 parser = None
@@ -94,35 +95,55 @@ def oss_parse(args):
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
 
 
-def unified_parse(log_dir: str, output_dir: str = None, overwrite: bool = True, overwrite_manifold: bool = True, **kwargs):
+def unified_parse(log_dir: Optional[str] = None, output_dir: Optional[str] = None, overwrite: bool = True, overwrite_manifold: bool = True, **kwargs):
     """
     Unified parse function that provides a flexible interface for parsing triton logs.
     
     Args:
-        log_dir: Input directory containing logs to parse
+        log_dir: Input directory containing logs to parse. If None, will parse from command line arguments
         output_dir: Output directory for parsed results. If None, results won't be saved to a specific location
         overwrite: Whether to overwrite existing output directory
         overwrite_manifold: Whether to overwrite existing manifold output directory
         **kwargs: Additional arguments like rank, all_ranks, verbose, etc.
     """
     parser = init_parser()
-    args = [log_dir]
     
-    if output_dir:
-        args.extend(["-o", output_dir])
+    # If log_dir is None, we're being called from command line
+    if log_dir is None:
+        args = parser.parse_args()
+    else:
+        # Build args programmatically
+        args_list = [log_dir]
+        
+        if output_dir:
+            args_list.extend(["-o", output_dir])
+        
+        if overwrite:
+            args_list.append("--overwrite")
+        
+        # Handle additional kwargs
+        if kwargs.get("verbose", False):
+            args_list.append("--verbose")
+        
+        if kwargs.get("rank") is not None:
+            args_list.extend(["-r", str(kwargs.get("rank"))])
+        
+        if kwargs.get("all_ranks", False):
+            args_list.append("--all-ranks")
+        
+        if kwargs.get("export", False):
+            args_list.append("--export")
+        
+        # Handle fbcode-specific arguments
+        if is_fbcode() and overwrite_manifold:
+            args_list.append("--overwrite-manifold")
+        
+        args = parser.parse_args(args_list)
     
-    if overwrite:
-        args.append("--overwrite")
-    
-    # Handle additional kwargs
-    if kwargs.get("verbose", False):
-        args.append("--verbose")
-    
+    # Choose the appropriate parse function
     if is_fbcode():
         from tritonparse.fb.utils import fb_parse as parse
-        if overwrite_manifold:
-            args.append("--overwrite-manifold")
     else:
         parse = oss_parse
 
-    parse(parser.parse_args(args))
+    parse(args)
