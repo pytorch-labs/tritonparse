@@ -8,7 +8,7 @@ from pathlib import Path
 # argument parser for OSS
 parser = None
 
-from .common import copy_local_to_tmpdir, is_fbcode, parse_logs, RankConfig, save_logs
+from .common import copy_local_to_tmpdir, is_fbcode, parse_logs, RankConfig, save_logs, print_parsed_files_summary
 from .source_type import Source, SourceType
 
 
@@ -92,7 +92,8 @@ def oss_parse(args):
     parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
     if args.out is not None:
         save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
-
+    # Print beautiful summary of all parsed files
+    print_parsed_files_summary(parsed_log_dir, args.out)
 
 def unified_parse(args=None):
     """
