@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Union
 
-import triton
+from .shared_vars import DEFAULT_TRACE_FILE_PREFIX
 
 log = logging.getLogger(__name__)
 
@@ -27,11 +27,7 @@ triton_trace_log = logging.getLogger("tritonparse_trace")
 triton_trace_folder = os.environ.get("TRITON_TRACE", None)
 # Enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
-# The compilation information will be stored to /logs/DEFAULT_TRACE_FILE_PREFIX by default
-# unless other flags disable or set another store. Add USER to avoid permission issues in shared servers.
-DEFAULT_TRACE_FILE_PREFIX = (
-    f"dedicated_log_triton_trace_{os.getenv('USER', 'unknown')}_"
-)
+
 TRITON_TRACE_HANDLER = None
 if importlib.util.find_spec("torch") is not None:
     TORCH_INSTALLED = True
@@ -623,6 +619,8 @@ def init(trace_folder: Optional[str] = None):
     Args:
         trace_folder (Optional[str]): The folder to store the trace files.
     """
+    import triton
+
     global triton_trace_folder
     maybe_enable_debug_logging()
     if triton_trace_folder is not None and trace_folder is not None:

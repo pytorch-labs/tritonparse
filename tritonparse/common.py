@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from .extract_source_mappings import parse_single_file
-from .structured_logging import DEFAULT_TRACE_FILE_PREFIX as LOG_PREFIX
+from .shared_vars import DEFAULT_TRACE_FILE_PREFIX as LOG_PREFIX
 from .tp_logger import logger
 
 LOG_RANK_REGEX = re.compile(r"rank_(\d+)")
