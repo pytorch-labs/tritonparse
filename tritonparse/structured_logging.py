@@ -8,13 +8,17 @@ import logging
 import math
 import os
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
+
+from triton.knobs import JITHook, LaunchHook
 
 from .shared_vars import DEFAULT_TRACE_FILE_PREFIX
+
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +31,10 @@ triton_trace_log = logging.getLogger("tritonparse_trace")
 triton_trace_folder = os.environ.get("TRITON_TRACE", None)
 # Enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
+# Enable launch trace. WARNNING: it will overwrite launch_metadata function for each triton kernel.
+TRITON_TRACE_LAUNCH = os.getenv("TRITON_TRACE_LAUNCH", None) in ["1", "true", "True"]
+# The flag to mark if launch is traced. It is used to avoid initilizing the launch hook twice.
+_trace_launch_enabled = False
 
 TRITON_TRACE_HANDLER = None
 if importlib.util.find_spec("torch") is not None:
@@ -270,7 +278,7 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                 log.debug(f"Error reading file {file_path}: {e}")
 
 
-def extrac_metadata_from_src(trace_data, src):
+def extract_metadata_from_src(trace_data, src):
     from triton._C.libtriton import get_cache_invalidating_env_vars
 
     env_vars = get_cache_invalidating_env_vars()
@@ -595,7 +603,7 @@ def maybe_trace_triton(
     extract_file_content(trace_data, metadata_group)
     # Extract Python source code information if available
     extract_python_source_info(trace_data, src)
-    extrac_metadata_from_src(trace_data, src)
+    extract_metadata_from_src(trace_data, src)
 
     # Add timing information if available
     if times:
@@ -609,18 +617,193 @@ def maybe_trace_triton(
     return trace_data
 
 
-def init(trace_folder: Optional[str] = None):
+def extract_arg_info(arg_dict):
     """
-    Initialize the structured logging system for Triton compilation.
+    Extract detailed information from kernel arguments, especially for PyTorch tensors.
 
-    This function sets up the logging system for Triton kernel compilation traces,
-    including the TRITON_TRACE environment variable and the TRITON_TRACE_HANDLER.
+    Args:
+        arg_dict: Dictionary of kernel arguments
+
+    Returns:
+        Dictionary with extracted argument information including tensor properties
+    """
+    extracted_args = {}
+
+    for arg_name, arg_value in arg_dict.items():
+        arg_info = {}
+
+        # Check if it's a PyTorch tensor
+        if TORCH_INSTALLED and isinstance(arg_value, torch.Tensor):
+            arg_info["type"] = "tensor"
+            arg_info["shape"] = list(arg_value.shape)
+            arg_info["dtype"] = str(arg_value.dtype)
+            arg_info["device"] = str(arg_value.device)
+            arg_info["stride"] = list(arg_value.stride())
+            arg_info["numel"] = arg_value.numel()
+            arg_info["is_contiguous"] = arg_value.is_contiguous()
+            arg_info["element_size"] = arg_value.element_size()
+            arg_info["storage_offset"] = arg_value.storage_offset()
+            # Memory usage in bytes
+            arg_info["memory_usage"] = arg_value.numel() * arg_value.element_size()
+            # Add data_ptr for memory tracking (optional)
+            if hasattr(arg_value, "data_ptr"):
+                arg_info["data_ptr"] = hex(arg_value.data_ptr())
+        # Handle scalar values
+        elif isinstance(arg_value, (int, float, bool)):
+            arg_info["type"] = type(arg_value).__name__
+            arg_info["value"] = arg_value
+        # Handle strings
+        elif isinstance(arg_value, str):
+            arg_info["type"] = "str"
+            arg_info["value"] = arg_value
+            arg_info["length"] = len(arg_value)
+        # Handle other types
+        else:
+            arg_info["type"] = type(arg_value).__name__
+            # Try to convert to string for logging
+            arg_info["repr"] = str(arg_value)
+            if len(arg_info["repr"]) > 200:  # Truncate very long representations
+                arg_info["repr"] = arg_info["repr"][:200] + "..."
+
+        extracted_args[arg_name] = arg_info
+
+    return extracted_args
+
+
+def add_launch_metadata(grid, metadata, arg_dict):
+    # Extract detailed argument information
+    extracted_args = extract_arg_info(arg_dict)
+    return {"launch_metadata_tritonparse": (grid, metadata, extracted_args)}
+
+
+class JITHookImpl(JITHook):
+    """
+    JIT Hook implementation that overrides or sets the launch_metadata function for Triton kernels.
+
+    This hook is essential for capturing detailed kernel launch information beyond the basic
+    metadata (like kernel name) that Triton provides by default. Without setting a custom
+    launch_metadata function, only minimal launch information is available as shown in:
+    https://github.com/triton-lang/triton/blob/7ce287dc24b43476cdeb30529089ac361564505d/python/triton/compiler/compiler.py#L504
+
+    By intercepting the JIT compilation process and setting a custom launch_metadata function,
+    we can capture comprehensive runtime information including grid parameters, kernel metadata,
+    and argument dictionaries for detailed analysis and logging.
+    """
+
+    def __call__(
+        self,
+        *,
+        key: str,
+        repr: str,
+        fn,
+        compile,
+        is_manual_warmup: bool,
+        already_compiled: bool,
+    ) -> Optional[bool]:
+        """
+        Override or set the launch_metadata function for the JIT-compiled kernel.
+
+        This method is called during the JIT compilation process and allows us to
+        inject our custom launch_metadata function that will be used to collect
+        detailed kernel launch information.
+
+        Args:
+            key: Unique identifier for the kernel
+            repr: String representation of the kernel
+            fn: The JIT function object
+            compile: Compilation function
+            is_manual_warmup: Whether this is a manual warmup call
+            already_compiled: Whether the kernel is already compiled
+
+        Returns:
+            True to continue with compilation, None/False to skip
+        """
+        launch_metadata_fn = fn.jit_function.launch_metadata
+        if launch_metadata_fn is not None:
+            log.warning(
+                f"fn {fn} launch_metadata_fn is not None: {launch_metadata_fn}. It will be overridden by tritonparse."
+            )
+        fn.jit_function.launch_metadata = add_launch_metadata
+        return True
+
+
+class LaunchHookImpl(LaunchHook):
+    """
+    Launch Hook implementation for capturing and logging kernel launch metadata.
+
+    This hook is responsible for intercepting kernel launches and extracting the detailed
+    metadata that was set up by the JITHookImpl. It provides entry point for
+    kernel execution, allowing comprehensive logging and analysis of kernel launches
+    including timing, parameters, and execution context.
+
+    The metadata captured includes:
+    - Kernel name and function details
+    - Grid dimensions and launch parameters
+    - Kernel arguments and their values
+    - Stream information
+    - Custom metadata added by the launch_metadata function
+    """
+
+    def __call__(self, metadata):
+        """
+        Handle kernel launch entry point.
+
+        This method is called when a kernel is about to be launched, providing
+        access to all the launch metadata for logging, profiling, or analysis.
+        metadata format:
+
+                Args:
+            metadata: LazyDict containing comprehensive launch information including
+                     kernel name, function, stream, grid parameters, and custom data
+                     format: {'name': 'add_kernel', 'function': None, 'stream': 0,
+                              'launch_metadata_tritonparse': (grid, self.metadata, extracted_args)}
+                     where extracted_args contains detailed info for each argument:
+                     - For tensors: shape, dtype, device, stride, memory_usage, etc.
+                     - For scalars: type and value
+                     - For other types: type and string representation
+                 defined here:
+                 https://github.com/triton-lang/triton/blob/7ce287dc24b43476cdeb30529089ac361564505d/
+                 python/triton/compiler/compiler.py#L512.
+        """
+        trace_data = defaultdict(dict)
+        metadata_dict = metadata.get()
+        trace_data["name"] = metadata_dict["name"]
+        trace_data["function"] = metadata_dict["function"]
+        trace_data["stream"] = metadata_dict["stream"]
+        launch_metadata_tritonparse = metadata_dict.get(
+            "launch_metadata_tritonparse", None
+        )
+        if launch_metadata_tritonparse is not None:
+            trace_data["grid"] = launch_metadata_tritonparse[0]
+            trace_data["metadata"] = launch_metadata_tritonparse[1]
+            trace_data["extracted_args"] = launch_metadata_tritonparse[
+                2
+            ]  # Now contains detailed arg info
+        trace_structured_triton("launch", metadata_fn=lambda: convert(trace_data))
+
+
+def maybe_enable_trace_launch():
+    global _trace_launch_enabled
+    if TRITON_TRACE_LAUNCH and not _trace_launch_enabled:
+        import triton
+
+        launch_hook = LaunchHookImpl()
+        jit_hook = JITHookImpl()
+        triton.knobs.runtime.jit_post_compile_hook = jit_hook
+        triton.knobs.runtime.launch_enter_hook = launch_hook
+
+        _trace_launch_enabled = True
+
+
+def init_basic(trace_folder: Optional[str] = None):
+    """
+    Initialize the basic logging system for Triton compilation.
+
+    This function sets up the basic logging system for Triton kernel compilation,
 
     Args:
         trace_folder (Optional[str]): The folder to store the trace files.
     """
-    import triton
-
     global triton_trace_folder
     maybe_enable_debug_logging()
     if triton_trace_folder is not None and trace_folder is not None:
@@ -632,4 +815,17 @@ def init(trace_folder: Optional[str] = None):
     if trace_folder is not None:
         triton_trace_folder = trace_folder
     init_logs()
+    maybe_enable_trace_launch()
+
+
+def init(trace_folder: Optional[str] = None):
+    """
+    This function is a wrapper around init_basic() that also setup the compilation listener.
+
+    Args:
+        trace_folder (Optional[str]): The folder to store the trace files.
+    """
+    import triton
+
+    init_basic(trace_folder)
     triton.knobs.compilation.listener = maybe_trace_triton
