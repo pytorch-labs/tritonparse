@@ -43,9 +43,8 @@ def init_parser():
         action="store_true",
     )
     parser.add_argument(
-        "-e", "--export", help="For export specific logs", action="store_true"
+        "-v", "--verbose", help="Verbose logging", action="store_true"
     )
-    parser.add_argument("-v", "--verbose", help="Verbose logging", action="store_true")
     if is_fbcode():
         from tritonparse.fb.utils import append_parser
 
@@ -53,7 +52,14 @@ def init_parser():
     return parser
 
 
-def oss_parse(args):
+def oss_parse(
+    source: Optional[str] = None,
+    out: Optional[str] = None,
+    overwrite: bool = True,
+    rank: Optional[int] = None,
+    all_ranks: bool = False,
+    verbose: bool = False,
+):
     """
     Main function for the parse subcommand. It is for OSS only.
 
@@ -63,15 +69,14 @@ def oss_parse(args):
     Returns:
         Exit code
     """
-    verbose = args.verbose
-    source = Source(args.source, verbose)
-    rank_config = RankConfig.from_cli_args(args.rank, args.all_ranks, source.type)
+    source = Source(source, verbose)
+    rank_config = RankConfig.from_cli_args(rank, all_ranks, source.type)
 
     # Check output directory early if specified
-    if args.out is not None:
-        out_dir = Path(args.out)
+    if out is not None:
+        out_dir = Path(out)
         if out_dir.exists():
-            if not args.overwrite:
+            if not overwrite:
                 raise RuntimeError(
                     f"{out_dir} already exists, pass --overwrite to overwrite"
                 )
@@ -91,69 +96,46 @@ def oss_parse(args):
         logs = copy_local_to_tmpdir(local_path, verbose)
 
     parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
-    if args.out is not None:
-        save_logs(Path(args.out), parsed_log_dir, args.overwrite, verbose)
+    if out is not None:
+        save_logs(Path(out), parsed_log_dir, overwrite, verbose)
 
+def unified_parse_from_cli():
+    parser = init_parser()
+    args = parser.parse_args()
+    return unified_parse(**vars(args))
 
 def unified_parse(
-    log_dir: Optional[str] = None,
-    output_dir: Optional[str] = None,
+    source: Optional[str] = None,
+    out: Optional[str] = None,
     overwrite: bool = True,
-    overwrite_manifold: bool = True,
+    rank: Optional[int] = None,
+    all_ranks: bool = False,
+    verbose: bool = False,
     **kwargs,
 ):
     """
     Unified parse function that provides a flexible interface for parsing triton logs.
 
     Args:
-        log_dir: Input directory containing logs to parse. If None, will parse from command line arguments
-        output_dir: Output directory for parsed results. If None, results won't be saved to a specific location
+        source: Input directory containing logs to parse. If None, will parse from command line arguments
+        out: Output directory for parsed results. If None, results won't be saved to a specific location
         overwrite: Whether to overwrite existing output directory
-        overwrite_manifold: Whether to overwrite existing manifold output directory
-        **kwargs: Additional arguments like rank, all_ranks, verbose, etc.
+        rank: Specific rank to analyze
+        all_ranks: Whether to analyze all ranks
+        verbose: Whether to enable verbose logging
     """
-    parser = init_parser()
-
-    # If log_dir is None, we're being called from command line
-    if log_dir is None:
-        args = parser.parse_args()
-    else:
-        # Build args programmatically
-        args_list = [log_dir]
-
-        if output_dir:
-            args_list.extend(["-o", output_dir])
-
-        if overwrite:
-            args_list.append("--overwrite")
-
-        # Handle additional kwargs
-        if kwargs.get("verbose", False):
-            args_list.append("--verbose")
-
-        if kwargs.get("rank") is not None:
-            args_list.extend(["-r", str(kwargs.get("rank"))])
-
-        if kwargs.get("all_ranks", False):
-            args_list.append("--all-ranks")
-
-        if kwargs.get("export", False):
-            args_list.append("--export")
-
-        # Handle fbcode-specific arguments
-        if is_fbcode() and overwrite_manifold:
-            args_list.append("--overwrite-manifold")
-
-        args = parser.parse_args(args_list)
-
-    if args.output_dir is not None and args.output_dir == args.source:
-        raise RuntimeError(
-            "Output directory cannot be the same as the input directory. Please specify a different output directory."
-        )
     # Choose the appropriate parse function
     if is_fbcode():
         from tritonparse.fb.utils import fb_parse as parse
     else:
         parse = oss_parse
 
-    parse(args)
+    parse(
+        source=source,
+        out=out,
+        overwrite=overwrite,
+        rank=rank,
+        all_ranks=all_ranks,
+        verbose=verbose,
+        **kwargs,
+    )
