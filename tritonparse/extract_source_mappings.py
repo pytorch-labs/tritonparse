@@ -14,6 +14,7 @@ and extracts bidirectional mappings between:
 """
 
 import argparse
+import gzip
 import json
 import logging
 import os
@@ -555,15 +556,33 @@ def parse_single_file(
     # Set default output directory if not provided
     output_dir = output_dir or os.path.dirname(file_path)
 
-    with open(file_path, "r") as f:
+    # Check if input file is compressed based on file extension
+    is_compressed_input = file_path.endswith(".bin.ndjson")
+
+    # Open file in appropriate mode - use gzip.open for compressed files
+    if is_compressed_input:
+        # Use gzip.open which automatically handles member concatenation
+        file_handle = gzip.open(file_path, "rt", encoding="utf-8")
+    else:
+        file_handle = open(file_path, "r")
+
+    with file_handle as f:
         file_name = os.path.basename(file_path)
-        file_name_without_extension = os.path.splitext(file_name)[0]
+        # Handle .bin.ndjson extension properly
+        if is_compressed_input:
+            file_name_without_extension = file_name[:-11]  # Remove .bin.ndjson
+        else:
+            file_name_without_extension = os.path.splitext(file_name)[0]
+
+        # Process lines uniformly for both compressed and uncompressed files
         for i, line in enumerate(f):
             logger.debug(f"Processing line {i + 1} in {file_path}")
-            # Skip empty lines
-            if not line.strip():
+
+            json_str = line.strip()
+            if not json_str:
                 continue
-            parsed_line = parse_single_trace_content(line)
+
+            parsed_line = parse_single_trace_content(json_str)
             if not parsed_line:
                 logger.warning(f"Failed to parse line {i + 1} in {file_path}")
                 continue
