@@ -51,7 +51,7 @@ def init_parser():
 
 
 def oss_run(
-    source: Optional[str] = None,
+    source: str,
     out: Optional[str] = None,
     overwrite: bool = True,
     rank: Optional[int] = None,
@@ -62,7 +62,7 @@ def oss_run(
     Main function for tritonparse. It is for OSS only.
 
     Args:
-        source: Source of torch logs to be analyzed
+        source: Source of torch logs to be analyzed (required)
         out: Output directory
         overwrite: Delete out directory if it already exists
         rank: Rank of logs to be analyzed
@@ -107,7 +107,7 @@ def unified_parse_from_cli():
 
 
 def unified_parse(
-    source: Optional[str] = None,
+    source: str,
     out: Optional[str] = None,
     overwrite: bool = True,
     rank: Optional[int] = None,
@@ -119,8 +119,8 @@ def unified_parse(
     Unified parse function that provides a flexible interface for parsing triton logs.
 
     Args:
-        source: Input directory containing logs to parse. If None, will parse from command line arguments
-        out: Output directory for parsed results. If None, results won't be saved to a specific location
+        source: Input directory containing logs to parse.
+        out: Output directory for parsed results. By default, parsed logs will be saved to a temporary directory.
         overwrite: Whether to overwrite existing output directory
         rank: Specific rank to analyze
         all_ranks: Whether to analyze all ranks
