@@ -1,6 +1,7 @@
 #  Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import atexit
+import fnmatch
 import gzip
 import importlib
 import inspect
@@ -15,7 +16,7 @@ from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from triton.knobs import JITHook, LaunchHook
 
@@ -35,6 +36,10 @@ triton_trace_log = logging.getLogger("tritonparse_trace")
 triton_trace_folder = os.environ.get("TRITON_TRACE", None)
 # Enable debug logging for tritonparse itself
 TRITONPARSE_DEBUG = os.getenv("TRITONPARSE_DEBUG", None) in ["1", "true", "True"]
+# Kernel allowlist for filtering traced kernels. Use comma separated list of fnmatch patterns.
+TRITONPARSE_KERNEL_ALLOWLIST = os.environ.get("TRITONPARSE_KERNEL_ALLOWLIST", None)
+# Parsed kernel allowlist patterns (set during init)
+_KERNEL_ALLOWLIST_PATTERNS: Optional[List[str]] = None
 # Enable launch trace. WARNNING: it will overwrite launch_metadata function for each triton kernel.
 TRITON_TRACE_LAUNCH = os.getenv("TRITON_TRACE_LAUNCH", None) in ["1", "true", "True"]
 # The flag to mark if launch is traced. It is used to avoid initilizing the launch hook twice.
@@ -179,14 +184,28 @@ def maybe_enable_debug_logging():
     """
     This logging is for logging module itself, not for logging the triton compilation.
     """
-    if TRITONPARSE_DEBUG and not log.hasHandlers():
-        log_handler = logging.StreamHandler()
-        log_handler.setLevel(logging.DEBUG)
-        log_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
+    if TRITONPARSE_DEBUG:
+        # Always set debug level if TRITONPARSE_DEBUG is set
         log.setLevel(logging.DEBUG)
-        log.addHandler(log_handler)
+
+        # Prevent propagation to root logger to avoid duplicate messages
+        log.propagate = False
+
+        # Check if we already have a debug handler
+        has_debug_handler = any(
+            isinstance(handler, logging.StreamHandler)
+            and handler.level <= logging.DEBUG
+            for handler in log.handlers
+        )
+
+        if not has_debug_handler:
+            log_handler = logging.StreamHandler()
+            log_handler.setLevel(logging.DEBUG)
+            formatter = logging.Formatter("%(asctime)s[%(levelname)s] %(message)s")
+            formatter.default_time_format = "%Y%m%d %H:%M:%S"
+            formatter.default_msec_format = None
+            log_handler.setFormatter(formatter)
+            log.addHandler(log_handler)
 
 
 def get_stack_trace(skip=1):
@@ -216,6 +235,91 @@ def get_stack_trace(skip=1):
             }
         )
     return frames
+
+
+def parse_kernel_allowlist() -> Optional[List[str]]:
+    """
+    Parse the kernel allowlist from environment variable.
+
+    Returns:
+        List[str] or None: List of kernel name patterns to trace, or None if all kernels should be traced
+    """
+    if not TRITONPARSE_KERNEL_ALLOWLIST:
+        return None
+
+    # Split by comma and strip whitespace
+    patterns = [pattern.strip() for pattern in TRITONPARSE_KERNEL_ALLOWLIST.split(",")]
+    # Filter out empty patterns
+    patterns = [pattern for pattern in patterns if pattern]
+
+    if not patterns:
+        return None
+
+    log.debug(f"Kernel allowlist patterns: {patterns}")
+    return patterns
+
+
+def extract_kernel_name(src) -> Optional[str]:
+    """
+    Extract kernel name from the source object.
+
+    Args:
+        src (Union[ASTSource, IRSource]): Source object containing kernel information
+
+    Returns:
+        str or None: Kernel name if extractable, None otherwise
+    """
+    from triton.compiler import IRSource
+
+    try:
+        if isinstance(src, IRSource):
+            return src.getattr("name", None)
+        else:
+            # For ASTSource, get the function name
+            if (
+                hasattr(src, "fn")
+                and hasattr(src.fn, "fn")
+                and hasattr(src.fn.fn, "__name__")
+            ):
+                return src.fn.fn.__name__
+            return None
+    except Exception as e:
+        log.warn(f"Error extracting kernel name: {e}")
+        return None
+
+
+def should_trace_kernel(
+    kernel_name: Optional[str], allowlist_patterns: Optional[List[str]]
+) -> bool:
+    """
+    Check if a kernel should be traced based on the allowlist.
+
+    Args:
+        kernel_name (str or None): Name of the kernel
+        allowlist_patterns (List[str] or None): List of patterns to match against
+
+    Returns:
+        bool: True if the kernel should be traced, False otherwise
+    """
+    # If no allowlist is set, trace all kernels
+    if allowlist_patterns is None:
+        return True
+
+    # If we can't extract kernel name, don't trace (conservative approach)
+    if kernel_name is None:
+        log.debug("Cannot extract kernel name, skipping trace")
+        return False
+
+    # Check if kernel name matches any pattern in the allowlist
+    for pattern in allowlist_patterns:
+        if fnmatch.fnmatch(kernel_name, pattern):
+            log.debug(f"Kernel '{kernel_name}' matches pattern '{pattern}', will trace")
+            return True
+
+    log.debug(
+        f"Kernel '{kernel_name}' does not match any allowlist pattern, skipping trace"
+    )
+    return False
 
 
 def extract_python_source_info(trace_data: Dict[str, Any], source):
@@ -595,6 +699,13 @@ def maybe_trace_triton(
     Returns:
         Dict[str, Any]: Dictionary containing all collected trace data, even if tracing is disabled
     """
+    # Check kernel allowlist early to avoid unnecessary work
+    if _KERNEL_ALLOWLIST_PATTERNS is not None:
+        kernel_name = extract_kernel_name(src)
+        if not should_trace_kernel(kernel_name, _KERNEL_ALLOWLIST_PATTERNS):
+            # Return empty dict to indicate no tracing was done
+            return {}
+
     # Initialize a dictionary with defaultdict to avoid key errors
     trace_data = defaultdict(dict)
     # Add cache_hit to metadata
@@ -826,7 +937,7 @@ def init_basic(trace_folder: Optional[str] = None):
     Args:
         trace_folder (Optional[str]): The folder to store the trace files.
     """
-    global triton_trace_folder
+    global triton_trace_folder, _KERNEL_ALLOWLIST_PATTERNS
     maybe_enable_debug_logging()
     if triton_trace_folder is not None and trace_folder is not None:
         log.info(
@@ -836,6 +947,16 @@ def init_basic(trace_folder: Optional[str] = None):
         )
     if trace_folder is not None:
         triton_trace_folder = trace_folder
+
+    # Parse and store kernel allowlist configuration
+    _KERNEL_ALLOWLIST_PATTERNS = parse_kernel_allowlist()
+    if _KERNEL_ALLOWLIST_PATTERNS:
+        log.debug(
+            f"Kernel allowlist enabled with patterns: {_KERNEL_ALLOWLIST_PATTERNS}"
+        )
+    else:
+        log.debug("Kernel allowlist not set, tracing all kernels")
+
     init_logs()
     maybe_enable_trace_launch()
 
