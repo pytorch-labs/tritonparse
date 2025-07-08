@@ -18,6 +18,10 @@ fi
 source /opt/miniconda3/etc/profile.d/conda.sh
 conda activate "$CONDA_ENV"
 
+# Set environment to use system libstdc++
+echo "Setting environment to use system libstdc++..."
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
 # Uninstall existing pytorch-triton
 echo "Uninstalling existing pytorch-triton..."
 pip uninstall -y pytorch-triton || true
