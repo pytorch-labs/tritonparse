@@ -15,10 +15,28 @@ echo "CONDA_ENV: $CONDA_ENV"
 echo "PYTHON_VERSION: $PYTHON_VERSION"
 echo "CUDA_VERSION: $CUDA_VERSION"
 
-# Install system dependencies including CUDA, clang, and clangd
+# Install system dependencies
 echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y cuda-toolkit-12.8 clang clangd libstdc++6
+
+# Add LLVM official repository for newer clangd
+echo "Adding LLVM official repository..."
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+sudo ./llvm.sh 17
+
+# Install clang and clangd first
+echo "Installing clang and clangd..."
+sudo apt-get install -y clang-17 clangd-17
+
+# Set up clang alternatives
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
+sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
+sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-17 100
+
+# Install CUDA and libstdc++ after clang is set up
+echo "Installing CUDA and libstdc++..."
+sudo apt-get install -y cuda-toolkit-12.8 libstdc++6
 
 # Verify clang installation
 echo "Verifying clang installation..."
