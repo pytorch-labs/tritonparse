@@ -15,6 +15,14 @@ echo "CONDA_ENV: $CONDA_ENV"
 echo "PYTHON_VERSION: $PYTHON_VERSION"
 echo "CUDA_VERSION: $CUDA_VERSION"
 
+# Update system libstdc++ to support newer C++ features
+echo "Updating system libstdc++..."
+sudo apt-get update
+sudo apt-get install -y gcc-12 g++-12 libstdc++6
+# print strings of libstdc++6
+strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX | tail -10
+
+
 # Install Miniconda if not already installed
 if [ ! -d "/opt/miniconda3" ]; then
     echo "Installing Miniconda..."
@@ -40,7 +48,7 @@ conda activate "$CONDA_ENV"
 
 # Check NVIDIA GPU information
 echo "Checking NVIDIA GPU information..."
-if command -v nvidia-smi &> /dev/null; then
+if command -v nvidia-smi &>/dev/null; then
     echo "nvidia-smi output:"
     nvidia-smi
 else
@@ -65,15 +73,7 @@ echo "Using CUDA version: $CUDA_VERSION"
 
 # Install cuDNN
 echo "Installing cuDNN..."
-conda install -c conda-forge cudnn=9.10.1.4 -y
-
-# Verify cuDNN installation
-echo "Verifying cuDNN installation..."
-python -c "import torch; print(f'cuDNN version: {torch.backends.cudnn.version()}')" 2>/dev/null || echo "cuDNN verification failed"
-
-# Show cuDNN installation location
-echo "cuDNN installation location:"
-find $CONDA_PREFIX -name "*cudnn*" 2>/dev/null | head -5 || echo "cuDNN files not found in conda environment"
+bash .ci/install-cudnn.sh
 
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."
@@ -85,7 +85,7 @@ python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 if python -c "import torch; print(torch.cuda.is_available())" | grep -q "True"; then
     python -c "import torch; print(f'CUDA version: {torch.version.cuda}')"
-    python -c "import torch; print(f'cuDNN available: {torch.backends.cudnn.is_available()}')"
+    python -c "import torch; print(f'cuDNN version: {torch.backends.cudnn.version()}')"
 fi
 
-echo "Setup completed successfully!" 
+echo "Setup completed successfully!"

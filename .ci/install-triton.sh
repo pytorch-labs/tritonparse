@@ -13,10 +13,6 @@ if [ -z "$CONDA_ENV" ]; then
     exit 1
 fi
 
-# Update system libstdc++ to support newer C++ features
-echo "Updating system libstdc++..."
-sudo apt-get update
-sudo apt-get install -y gcc-12 g++-12 libstdc++6
 
 # Activate conda environment
 source /opt/miniconda3/etc/profile.d/conda.sh

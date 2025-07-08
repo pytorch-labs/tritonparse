@@ -28,6 +28,30 @@ Installs Triton from source by cloning the repository and building it.
 CONDA_ENV=tritonparse bash .ci/install-triton.sh
 ```
 
+### `install-cudnn.sh`
+Downloads and installs cuDNN to /usr/local/cuda.
+
+**Environment Variables:**
+- `CUDNN_VERSION`: cuDNN version (default: "9.10.1.4")
+- `CUDA_VERSION`: CUDA version (default: "12.8")
+- `CUDA_HOME`: CUDA installation path (default: "/usr/local/cuda")
+- `CONDA_ENV`: Conda environment name (optional, for conda fallback)
+
+**Usage:**
+```bash
+# Install with default version
+bash .ci/install-cudnn.sh
+
+# Install with custom version
+CUDNN_VERSION=9.10.1.4 CUDA_VERSION=12.8 bash .ci/install-cudnn.sh
+
+# Install with custom CUDA path
+CUDA_HOME=/opt/cuda bash .ci/install-cudnn.sh
+
+# With conda environment
+CONDA_ENV=tritonparse bash .ci/install-cudnn.sh
+```
+
 ### `install-project.sh`
 Installs the tritonparse project in editable mode with test dependencies.
 
@@ -71,13 +95,16 @@ For a complete setup and test run:
 # 1. Setup environment
 CONDA_ENV=tritonparse PYTHON_VERSION=3.11 bash .ci/setup.sh
 
-# 2. Install Triton
+# 2. Install cuDNN (optional, included in setup.sh)
+CONDA_ENV=tritonparse bash .ci/install-cudnn.sh
+
+# 3. Install Triton
 CONDA_ENV=tritonparse bash .ci/install-triton.sh
 
-# 3. Install project
+# 4. Install project
 CONDA_ENV=tritonparse bash .ci/install-project.sh
 
-# 4. Run tests
+# 5. Run tests
 CONDA_ENV=tritonparse TEST_TYPE=all COVERAGE=true bash .ci/run-tests.sh
 ```
 
