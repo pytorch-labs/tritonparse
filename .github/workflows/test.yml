@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, findhao/setup_ci ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
