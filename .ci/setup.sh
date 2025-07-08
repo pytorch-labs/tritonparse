@@ -25,6 +25,16 @@ wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
 sudo ./llvm.sh 17
 
+# Fix GPG key issues for LLVM repository
+echo "Fixing LLVM repository GPG key..."
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 || {
+    echo "Failed to add LLVM GPG key, trying alternative method..."
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+}
+
+# Update package lists again after fixing GPG key
+sudo apt-get update
+
 # Install clang and clangd first
 echo "Installing clang and clangd..."
 sudo apt-get install -y clang-17 clangd-17
