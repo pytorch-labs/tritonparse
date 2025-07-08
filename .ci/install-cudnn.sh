@@ -88,7 +88,7 @@ echo "Verifying cuDNN installation..."
 # Check for cuDNN headers
 if [ -f "$CUDA_HOME/include/cudnn.h" ]; then
     echo "✓ cuDNN headers found in $CUDA_HOME/include/"
-    ls -la "$CUDA_HOME/include/cudnn*"
+    ls -la "$CUDA_HOME/include/cudnn"*
 else
     echo "⚠ cuDNN headers not found in $CUDA_HOME/include/"
 fi
@@ -96,7 +96,7 @@ fi
 # Check for cuDNN libraries
 if [ -f "$CUDA_HOME/lib64/libcudnn.so" ]; then
     echo "✓ cuDNN libraries found in $CUDA_HOME/lib64/"
-    ls -la "$CUDA_HOME/lib64/libcudnn*"
+    ls -la "$CUDA_HOME/lib64/libcudnn"*
 else
     echo "⚠ cuDNN libraries not found in $CUDA_HOME/lib64/"
 fi
