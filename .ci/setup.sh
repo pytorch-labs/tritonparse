@@ -63,9 +63,21 @@ fi
 export CUDA_VERSION="$CUDA_VERSION"
 echo "Using CUDA version: $CUDA_VERSION"
 
+# Install cuDNN
+echo "Installing cuDNN..."
+conda install -c conda-forge cudnn=9.10.1.4 -y
+
+# Verify cuDNN installation
+echo "Verifying cuDNN installation..."
+python -c "import torch; print(f'cuDNN version: {torch.backends.cudnn.version()}')" 2>/dev/null || echo "cuDNN verification failed"
+
+# Show cuDNN installation location
+echo "cuDNN installation location:"
+find $CONDA_PREFIX -name "*cudnn*" 2>/dev/null | head -5 || echo "cuDNN files not found in conda environment"
+
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."
-pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
+pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 
 # Verify PyTorch installation
 echo "Verifying PyTorch installation..."
@@ -73,6 +85,7 @@ python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 if python -c "import torch; print(torch.cuda.is_available())" | grep -q "True"; then
     python -c "import torch; print(f'CUDA version: {torch.version.cuda}')"
+    python -c "import torch; print(f'cuDNN available: {torch.backends.cudnn.is_available()}')"
 fi
 
 echo "Setup completed successfully!" 

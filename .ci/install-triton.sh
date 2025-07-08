@@ -13,6 +13,11 @@ if [ -z "$CONDA_ENV" ]; then
     exit 1
 fi
 
+# Update system libstdc++ to support newer C++ features
+echo "Updating system libstdc++..."
+sudo apt-get update
+sudo apt-get install -y gcc-12 g++-12 libstdc++6
+
 # Activate conda environment
 source /opt/miniconda3/etc/profile.d/conda.sh
 conda activate "$CONDA_ENV"
@@ -52,7 +57,15 @@ pip install -e .
 
 # Verify Triton installation
 echo "Verifying Triton installation..."
-python -c "import triton; print(f'Triton version: {triton.__version__}')"
+python -c "import triton; print(f'Triton version: {triton.__version__}')" || {
+    echo "ERROR: Failed to import triton"
+    echo "This might be due to libstdc++ version issues"
+    echo "Checking system libstdc++ version:"
+    strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX | tail -5
+    echo "Checking conda libstdc++ version:"
+    strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5
+    exit 1
+}
 python -c "import triton; print(f'Triton path: {triton.__file__}')"
 
-echo "Triton installation completed successfully!" 
+echo "Triton installation completed successfully!"
