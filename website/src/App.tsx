@@ -75,9 +75,13 @@ function App() {
       if (exists) {
         try {
           // Dynamically import internal utils only if fb directory exists
-          const { getInternalWikiUrl } = await import('./utils/fb/internal_utils');
-          const url = getInternalWikiUrl();
-          setInternalWikiUrl(url);
+          // Use safe import utility to completely bypass static analysis
+          const { safeImport } = await import('./utils/safeImport');
+          const module = await safeImport('./utils/fb/internal_utils');
+          if (module && module.getInternalWikiUrl) {
+            const url = module.getInternalWikiUrl();
+            setInternalWikiUrl(url);
+          }
         } catch (error) {
           console.warn('Failed to load internal utils:', error);
         }
