@@ -50,6 +50,7 @@ MANIFEST
 .coverage
 htmlcov/
 parsed_output/
+!tests/example_output/
 .tox/
 .nox/
 .hypothesis/
