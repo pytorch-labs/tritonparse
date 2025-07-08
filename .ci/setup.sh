@@ -15,12 +15,15 @@ echo "CONDA_ENV: $CONDA_ENV"
 echo "PYTHON_VERSION: $PYTHON_VERSION"
 echo "CUDA_VERSION: $CUDA_VERSION"
 
-# Update system libstdc++ to support newer C++ features
-echo "Updating system libstdc++..."
+# Install clang and clangd for faster compilation
+echo "Installing clang and clangd for faster compilation..."
 sudo apt-get update
-sudo apt-get install -y gcc-12 g++-12 libstdc++6
-# print strings of libstdc++6
-strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX | tail -10
+sudo apt-get install -y clang clangd libstdc++6
+
+# Verify clang installation
+echo "Verifying clang installation..."
+clang --version
+clangd --version
 
 
 # Install Miniconda if not already installed

@@ -56,8 +56,15 @@ pip install ninja cmake wheel pybind11
 echo "Installing Triton requirements..."
 pip install -r python/requirements.txt
 
-# Install Triton in editable mode
-echo "Installing Triton in editable mode..."
+# Set environment to use clang compiler for faster compilation
+echo "Setting up clang compiler for faster compilation..."
+export CC=clang
+export CXX=clang++
+echo "Using CC: $CC"
+echo "Using CXX: $CXX"
+
+# Install Triton in editable mode with clang
+echo "Installing Triton in editable mode with clang..."
 pip install -e .
 
 # Verify Triton installation
