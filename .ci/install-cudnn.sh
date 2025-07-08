@@ -24,40 +24,57 @@ fi
 
 echo "Found CUDA installation at $CUDA_HOME"
 
+# Detect architecture
+export TARGETARCH=${TARGETARCH:-$(uname -m)}
+if [ "${TARGETARCH}" = 'aarch64' ] || [ "${TARGETARCH}" = 'arm64' ]; then
+    ARCH_PATH='sbsa'
+else
+    ARCH_PATH='x86_64'
+fi
+
+echo "Architecture: ${ARCH_PATH}"
+
 cd /tmp
 
-# Download cuDNN archive
-CUDNN_ARCHIVE="cudnn-linux-x86_64-${CUDNN_VERSION}_cuda12-archive.tar.xz"
-echo "Looking for cuDNN archive: $CUDNN_ARCHIVE"
+# Download cuDNN archive from NVIDIA
+CUDNN_ARCHIVE="cudnn-linux-${ARCH_PATH}-${CUDNN_VERSION}_cuda12-archive.tar.xz"
+CUDNN_URL="https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-${ARCH_PATH}/${CUDNN_ARCHIVE}"
 
-if [ -f "$CUDNN_ARCHIVE" ]; then
-    echo "Found cuDNN archive, installing from file..."
+echo "Downloading cuDNN from: $CUDNN_URL"
+echo "Archive name: $CUDNN_ARCHIVE"
 
-    # Extract cuDNN
-    echo "Extracting cuDNN archive..."
-    tar -xJf "$CUDNN_ARCHIVE"
-
-    # Install cuDNN to CUDA directory
-    echo "Installing cuDNN to $CUDA_HOME..."
-    sudo cp cuda/include/cudnn*.h "$CUDA_HOME/include/"
-    sudo cp cuda/lib64/libcudnn* "$CUDA_HOME/lib64/"
-    sudo chmod a+r "$CUDA_HOME/include/cudnn*.h" "$CUDA_HOME/lib64/libcudnn*"
-
-    echo "cuDNN installed successfully from archive"
-else
-    echo "cuDNN archive not found, using conda installation as fallback..."
-
-    # Ensure conda environment is activated
-    if [ -n "$CONDA_ENV" ]; then
-        source /opt/miniconda3/etc/profile.d/conda.sh
-        conda activate "$CONDA_ENV"
-    fi
-
-    # Install cuDNN via conda
-    conda install -c conda-forge cudnn="$CUDNN_VERSION" -y
-
-    echo "cuDNN installed successfully via conda"
+# Download cuDNN
+if ! wget -q "$CUDNN_URL" -O "$CUDNN_ARCHIVE"; then
+    echo "ERROR: Failed to download cuDNN from $CUDNN_URL"
+    exit 1
 fi
+
+echo "cuDNN download complete, extracting archive..."
+
+# Extract cuDNN
+if ! tar -xJf "$CUDNN_ARCHIVE"; then
+    echo "ERROR: Failed to extract cuDNN archive"
+    exit 1
+fi
+
+# Install cuDNN to CUDA directory
+echo "Installing cuDNN to $CUDA_HOME..."
+EXTRACTED_DIR="cudnn-linux-${ARCH_PATH}-${CUDNN_VERSION}_cuda12-archive"
+
+if [ -d "$EXTRACTED_DIR" ]; then
+    sudo cp -a "$EXTRACTED_DIR/include/"* "$CUDA_HOME/include/"
+    sudo cp -a "$EXTRACTED_DIR/lib/"* "$CUDA_HOME/lib64/"
+    sudo chmod a+r "$CUDA_HOME/include/cudnn*.h" "$CUDA_HOME/lib64/libcudnn*"
+    
+    echo "cuDNN installed successfully"
+else
+    echo "ERROR: Extracted directory not found: $EXTRACTED_DIR"
+    exit 1
+fi
+
+# Clean up downloaded files
+rm -f "$CUDNN_ARCHIVE"
+rm -rf "$EXTRACTED_DIR"
 
 # Set cuDNN environment variables
 export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
