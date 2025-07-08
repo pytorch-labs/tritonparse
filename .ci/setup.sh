@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Setup script for tritonparse CI environment
+# This script sets up the conda environment, installs dependencies, and configures CUDA
+
+set -e
+
+# Default values
+CONDA_ENV=${CONDA_ENV:-"tritonparse"}
+PYTHON_VERSION=${PYTHON_VERSION:-"3.11"}
+CUDA_VERSION=${CUDA_VERSION:-"12.8"}
+
+echo "Setting up tritonparse environment..."
+echo "CONDA_ENV: $CONDA_ENV"
+echo "PYTHON_VERSION: $PYTHON_VERSION"
+echo "CUDA_VERSION: $CUDA_VERSION"
+
+# Install Miniconda if not already installed
+if [ ! -d "/opt/miniconda3" ]; then
+    echo "Installing Miniconda..."
+    wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/Miniconda3-latest-Linux-x86_64.sh
+    chmod +x /tmp/Miniconda3-latest-Linux-x86_64.sh
+    bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -u -p /opt/miniconda3
+fi
+
+# Add conda to PATH
+export PATH="/opt/miniconda3/bin:$PATH"
+export CONDA_HOME="/opt/miniconda3"
+
+# Initialize conda
+conda init bash || true
+
+# Create conda environment
+echo "Creating conda environment: $CONDA_ENV"
+conda create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y || true
+
+# Activate conda environment
+source /opt/miniconda3/etc/profile.d/conda.sh
+conda activate "$CONDA_ENV"
+
+# Check NVIDIA GPU information
+echo "Checking NVIDIA GPU information..."
+if command -v nvidia-smi &> /dev/null; then
+    echo "nvidia-smi output:"
+    nvidia-smi
+else
+    echo "nvidia-smi not found"
+fi
+
+# Detect CUDA version
+echo "Detecting CUDA version..."
+if [ -d "/usr/local/cuda" ]; then
+    DETECTED_CUDA=$(ls -la /usr/local/cuda | grep -o 'cuda-[0-9.]*' | head -1 | sed 's/cuda-//')
+    if [ -n "$DETECTED_CUDA" ]; then
+        CUDA_VERSION="$DETECTED_CUDA"
+        echo "Found CUDA version: $CUDA_VERSION"
+    fi
+    export CUDA_HOME="/usr/local/cuda"
+else
+    echo "CUDA not found in /usr/local/cuda"
+fi
+
+export CUDA_VERSION="$CUDA_VERSION"
+echo "Using CUDA version: $CUDA_VERSION"
+
+# Install PyTorch nightly
+echo "Installing PyTorch nightly..."
+pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu126
+
+# Verify PyTorch installation
+echo "Verifying PyTorch installation..."
+python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+if python -c "import torch; print(torch.cuda.is_available())" | grep -q "True"; then
+    python -c "import torch; print(f'CUDA version: {torch.version.cuda}')"
+fi
+
+echo "Setup completed successfully!" 
