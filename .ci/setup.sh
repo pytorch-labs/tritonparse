@@ -47,7 +47,7 @@ sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-17 100
 
 # Install CUDA and libstdc++ after clang is set up
 echo "Installing CUDA and libstdc++..."
-sudo apt-get install -y cuda-toolkit-12.8 libstdc++6
+sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev
 
 # Verify clang installation
 echo "Verifying clang installation..."
