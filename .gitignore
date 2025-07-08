@@ -49,6 +49,10 @@ MANIFEST
 .pytest_cache/
 .coverage
 htmlcov/
+parsed_output/
+!tests/example_output/
+!tests/example_output/parsed_output/
+!tests/example_output/logs/
 .tox/
 .nox/
 .hypothesis/

@@ -1,5 +1,6 @@
 """
-Simple Triton kernel for tensor addition.
+Simple Triton kernel for tensor addition. This file is not included in unit tests.
+
 Test Plan:
 ```
 TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python tests/test_add.py
