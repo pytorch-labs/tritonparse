@@ -19,20 +19,16 @@ echo "CUDA_VERSION: $CUDA_VERSION"
 echo "Installing system dependencies..."
 sudo apt-get update
 
-# Add LLVM official repository for newer clangd
-echo "Adding LLVM official repository..."
-wget https://apt.llvm.org/llvm.sh
-chmod +x llvm.sh
-sudo ./llvm.sh 17
+# Set up LLVM 17 APT source with modern GPG key handling
+echo "Setting up LLVM 17 APT source with modern GPG key handling..."
 
-# Fix GPG key issues for LLVM repository
-echo "Fixing LLVM repository GPG key..."
-sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421 || {
-    echo "Failed to add LLVM GPG key, trying alternative method..."
-    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-}
+# Download and install GPG key to /usr/share/keyrings
+curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
 
-# Update package lists again after fixing GPG key
+# Write APT source list, explicitly binding keyring file
+echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" | sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
+
+# Update package lists
 sudo apt-get update
 
 # Install clang and clangd first
