@@ -13,6 +13,7 @@ export default defineConfig({
     {
       name: 'strip-module-attr',
       enforce: 'post',
+      apply: 'build', // only apply this plugin during build
       transformIndexHtml(html) {
         return html.replace(
           /<script\s+type=["']module["']\s+([^>]*?)src=/g,
