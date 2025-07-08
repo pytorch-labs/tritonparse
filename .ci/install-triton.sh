@@ -18,9 +18,14 @@ fi
 source /opt/miniconda3/etc/profile.d/conda.sh
 conda activate "$CONDA_ENV"
 
-# Set environment to use system libstdc++
-echo "Setting environment to use system libstdc++..."
-export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+# Update libstdc++ to match system version
+# Otherwise, we get errors like:
+# ImportError: /opt/miniconda3/envs/tritonparse/bin/../lib/libstdc++.so.6:
+# version `GLIBCXX_3.4.30' not found (required by /tmp/triton/python/triton/_C/libtriton.so)
+echo "Updating libstdc++ to match system version..."
+conda install -y -c conda-forge libstdcxx-ng=12.3.0
+# Check if the update was successful
+strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5
 
 # Uninstall existing pytorch-triton
 echo "Uninstalling existing pytorch-triton..."
