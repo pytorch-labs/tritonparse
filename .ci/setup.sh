@@ -15,10 +15,10 @@ echo "CONDA_ENV: $CONDA_ENV"
 echo "PYTHON_VERSION: $PYTHON_VERSION"
 echo "CUDA_VERSION: $CUDA_VERSION"
 
-# Install clang and clangd for faster compilation
-echo "Installing clang and clangd for faster compilation..."
+# Install system dependencies including CUDA, clang, and clangd
+echo "Installing system dependencies..."
 sudo apt-get update
-sudo apt-get install -y clang clangd libstdc++6
+sudo apt-get install -y cuda-toolkit-12.8 clang clangd libstdc++6
 
 # Verify clang installation
 echo "Verifying clang installation..."
