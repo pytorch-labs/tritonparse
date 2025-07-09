@@ -11,9 +11,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-xdist>=3.0.0",
+    "coverage>=7.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -25,21 +23,6 @@ line-length = 88
 [tool.black]
 line-length = 88
 target-version = ["py310"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "-v",
-    "--tb=short",
-    "--strict-markers",
-    "--disable-warnings",
-]
-markers = [
-    "cuda: mark test as requiring CUDA",
-]
 
 [project.urls]
 "Homepage" = "https://github.com/pytorch-labs/tritonparse"
