@@ -15,12 +15,20 @@ from dataclasses import dataclass
 from typing import Any, Union
 
 import torch
+
+# @manual=//triton:triton
 import triton
+
+# @manual=//triton:triton
 import triton.language as tl
 
 import tritonparse.structured_logging
 import tritonparse.utils
+
+# @manual=//triton:triton
 from triton.compiler import ASTSource, IRSource
+
+# @manual=//triton:triton
 from triton.knobs import CompileTimes
 from tritonparse.structured_logging import convert, extract_python_source_info
 
