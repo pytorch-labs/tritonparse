@@ -30,7 +30,7 @@ conda activate "$CONDA_ENV"
 # export TRITONPARSE_DEBUG=1
 
 # Build pytest command
-PYTEST_CMD="python -m pytest tests/test_tritonparse.py"
+PYTEST_CMD="python -m unittest tests.test_tritonparse"
 
 # Add verbose flag
 if [ "$VERBOSE" = "true" ]; then
