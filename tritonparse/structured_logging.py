@@ -851,10 +851,18 @@ class JITHookImpl(JITHook):
         Returns:
             True to continue with compilation, None/False to skip
         """
-        launch_metadata_fn = fn.jit_function.launch_metadata
-        if launch_metadata_fn is not None:
+        # Check kernel allowlist early to avoid unnecessary work
+        if _KERNEL_ALLOWLIST_PATTERNS is not None:
+            kernel_name = fn.name
+            if not should_trace_kernel(kernel_name, _KERNEL_ALLOWLIST_PATTERNS):
+                # Skip overriding launch_metadata if kernel is not in allowlist
+                return True
+
+        # Get the current launch_metadata function if it exists
+        current_launch_metadata = getattr(fn.jit_function, "launch_metadata", None)
+        if current_launch_metadata is not None:
             log.warning(
-                f"fn {fn} launch_metadata_fn is not None: {launch_metadata_fn}. It will be overridden by tritonparse."
+                f"fn {fn} launch_metadata is not None: {current_launch_metadata}. It will be overridden by tritonparse."
             )
         fn.jit_function.launch_metadata = add_launch_metadata
         return True
@@ -898,8 +906,16 @@ class LaunchHookImpl(LaunchHook):
                  https://github.com/triton-lang/triton/blob/7ce287dc24b43476cdeb30529089ac361564505d/
                  python/triton/compiler/compiler.py#L512.
         """
-        trace_data = defaultdict(dict)
         metadata_dict = metadata.get()
+        # Check kernel allowlist early to avoid unnecessary work
+        if _KERNEL_ALLOWLIST_PATTERNS is not None:
+            kernel_name = metadata_dict.get("name")
+
+            if not should_trace_kernel(kernel_name, _KERNEL_ALLOWLIST_PATTERNS):
+                # Skip tracing if kernel is not in allowlist
+                return
+
+        trace_data = defaultdict(dict)
         trace_data["name"] = metadata_dict["name"]
         trace_data["function"] = metadata_dict["function"]
         trace_data["stream"] = metadata_dict["stream"]

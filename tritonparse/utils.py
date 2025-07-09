@@ -9,7 +9,14 @@ from typing import Optional
 # argument parser for OSS
 parser = None
 
-from .common import copy_local_to_tmpdir, is_fbcode, parse_logs, RankConfig, save_logs
+from .common import (
+    copy_local_to_tmpdir,
+    is_fbcode,
+    parse_logs,
+    print_parsed_files_summary,
+    RankConfig,
+    save_logs,
+)
 from .source_type import Source, SourceType
 
 
@@ -53,7 +60,7 @@ def init_parser():
 def oss_run(
     source: str,
     out: Optional[str] = None,
-    overwrite: bool = True,
+    overwrite: Optional[bool] = False,
     rank: Optional[int] = None,
     all_ranks: bool = False,
     verbose: bool = False,
@@ -98,6 +105,12 @@ def oss_run(
     parsed_log_dir, _ = parse_logs(logs, rank_config, verbose)
     if out is not None:
         save_logs(Path(out), parsed_log_dir, overwrite, verbose)
+    # Print beautiful summary of all parsed files
+    if out is not None:
+        out_dir = str(Path(out).absolute())
+    else:
+        out_dir = str(Path(parsed_log_dir).absolute())
+    print_parsed_files_summary(out_dir)
 
 
 def unified_parse_from_cli():
@@ -109,7 +122,7 @@ def unified_parse_from_cli():
 def unified_parse(
     source: str,
     out: Optional[str] = None,
-    overwrite: bool = True,
+    overwrite: Optional[bool] = False,
     rank: Optional[int] = None,
     all_ranks: bool = False,
     verbose: bool = False,

@@ -135,6 +135,57 @@ class RankConfig:
         return Rank()
 
 
+def print_parsed_files_summary(parsed_log_dir: str) -> None:
+    """
+    Print a beautiful summary of all parsed files.
+
+    Args:
+        parsed_log_dir: Directory containing parsed files
+    """
+    # Collect all parsed files
+    all_parsed_files = []
+    for root, _, files in os.walk(parsed_log_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            all_parsed_files.append(file_path)
+
+    # Sort files for consistent output
+    all_parsed_files.sort()
+
+    # Print beautiful summary
+    print("\n" + "=" * 80)
+    print("📁 TRITONPARSE PARSING RESULTS")
+    print("=" * 80)
+
+    # Print log file list (required for integration)
+    print(f"📂 Parsed files directory: {parsed_log_dir}")
+    print(f"📊 Total files generated: {len(all_parsed_files)}")
+
+    if all_parsed_files:
+        print("\n📄 Generated files:")
+        print("-" * 50)
+        for i, file_path in enumerate(all_parsed_files, 1):
+            # Get relative path for cleaner display
+            rel_path = os.path.relpath(file_path, parsed_log_dir)
+            file_size = "N/A"
+            try:
+                size_bytes = os.path.getsize(file_path)
+                if size_bytes < 1024:
+                    file_size = f"{size_bytes}B"
+                elif size_bytes < 1024 * 1024:
+                    file_size = f"{size_bytes/1024:.1f}KB"
+                else:
+                    file_size = f"{size_bytes/(1024*1024):.1f}MB"
+            except OSError:
+                pass
+
+            print(f"  {i:2d}. 📝 {rel_path} ({file_size})")
+
+    print("=" * 80)
+    print("✅ Parsing completed successfully!")
+    print("=" * 80 + "\n")
+
+
 def gzip_single_file(file_path: str, verbose: bool = False) -> str:
     """
     Gzip a single file and delete the original file.
@@ -318,7 +369,9 @@ def parse_logs(
     log_file_list_path = os.path.join(parsed_log_dir, "log_file_list.json")
     with open(log_file_list_path, "w") as f:
         json.dump(file_mapping, f, indent=2)
+
     # NOTICE: this print is required for tlparser-tritonparse integration
+    # DON'T REMOVE THIS PRINT
     print(f"tritonparse log file list: {log_file_list_path}")
     return parsed_log_dir, file_mapping
 
