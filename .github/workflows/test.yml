@@ -1,71 +1,71 @@
 name: Tests
 
 on:
-  push:
-    branches: [main, develop, findhao/setup_ci]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      test-type:
-        description: "Type of tests to run"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - "all"
-          - "cpu"
-          - "cuda"
-      coverage:
-        description: "Enable coverage reporting"
-        required: true
-        default: false
-        type: boolean
+    push:
+        branches: [main, develop, findhao/setup_ci]
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
+        inputs:
+            test-type:
+                description: "Type of tests to run"
+                required: true
+                default: "all"
+                type: choice
+                options:
+                    - "all"
+                    - "cpu"
+                    - "cuda"
+            coverage:
+                description: "Enable coverage reporting"
+                required: true
+                default: false
+                type: boolean
 
 jobs:
-  test:
-    runs-on: 4-core-ubuntu-gpu-t4
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v4
+    test:
+        runs-on: 4-core-ubuntu-gpu-t4
+        timeout-minutes: 120
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
+            - name: Set up Python 3.11
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.11"
 
-      - name: Setup environment
-        env:
-          CONDA_ENV: tritonparse
-          PYTHON_VERSION: "3.11"
-          CUDA_VERSION: "12.8"
-        run: |
-          bash .ci/setup.sh
+            - name: Setup environment
+              env:
+                  CONDA_ENV: tritonparse
+                  PYTHON_VERSION: "3.11"
+                  CUDA_VERSION: "12.8"
+              run: |
+                  bash .ci/setup.sh
 
-      - name: Install Triton from source
-        env:
-          CONDA_ENV: tritonparse
-        run: |
-          bash .ci/install-triton.sh
+            - name: Install Triton from source
+              env:
+                  CONDA_ENV: tritonparse
+              run: |
+                  bash .ci/install-triton.sh
 
-      - name: Install project dependencies
-        env:
-          CONDA_ENV: tritonparse
-        run: |
-          bash .ci/install-project.sh
+            - name: Install project dependencies
+              env:
+                  CONDA_ENV: tritonparse
+              run: |
+                  bash .ci/install-project.sh
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-3.11-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-3.11-
+            - name: Cache pip dependencies
+              uses: actions/cache@v3
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-3.11-${{ hashFiles('**/pyproject.toml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-3.11-
 
-      - name: Run tests
-        env:
-          CONDA_ENV: tritonparse
-          TEST_TYPE: ${{ github.event.inputs.test-type || 'all' }}
-          COVERAGE: ${{ github.event.inputs.coverage || 'false' }}
-        run: |
-          bash .ci/run-tests.sh
+            - name: Run tests
+              env:
+                  CONDA_ENV: tritonparse
+                  TEST_TYPE: ${{ github.event.inputs.test-type || 'all' }}
+                  COVERAGE: ${{ github.event.inputs.coverage || 'false' }}
+              run: |
+                  bash .ci/run-tests.sh

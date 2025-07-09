@@ -31,70 +31,70 @@ conda activate "$CONDA_ENV"
 
 # Build unittest command based on test type
 case "$TEST_TYPE" in
-    "cpu")
-        echo "Running CPU tests only..."
-        if [ "$COVERAGE" = "true" ]; then
-            echo "Running with coverage..."
-            if [ "$VERBOSE" = "true" ]; then
-                coverage run -m unittest tests.test_tritonparse.TestTritonparseCPU -v
-            else
-                coverage run -m unittest tests.test_tritonparse.TestTritonparseCPU
-            fi
-            coverage report
-            coverage xml
+"cpu")
+    echo "Running CPU tests only..."
+    if [ "$COVERAGE" = "true" ]; then
+        echo "Running with coverage..."
+        if [ "$VERBOSE" = "true" ]; then
+            coverage run -m unittest tests.test_tritonparse.TestTritonparseCPU -v
         else
-            if [ "$VERBOSE" = "true" ]; then
-                python -m unittest tests.test_tritonparse.TestTritonparseCPU -v
-            else
-                python -m unittest tests.test_tritonparse.TestTritonparseCPU
-            fi
+            coverage run -m unittest tests.test_tritonparse.TestTritonparseCPU
         fi
-        ;;
-    "cuda")
-        echo "Running CUDA tests only..."
-        export CUDA_VISIBLE_DEVICES=0
-        if [ "$COVERAGE" = "true" ]; then
-            echo "Running with coverage..."
-            if [ "$VERBOSE" = "true" ]; then
-                coverage run -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
-            else
-                coverage run -m unittest tests.test_tritonparse.TestTritonparseCUDA
-            fi
-            coverage report
-            coverage xml
+        coverage report
+        coverage xml
+    else
+        if [ "$VERBOSE" = "true" ]; then
+            python -m unittest tests.test_tritonparse.TestTritonparseCPU -v
         else
-            if [ "$VERBOSE" = "true" ]; then
-                python -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
-            else
-                python -m unittest tests.test_tritonparse.TestTritonparseCUDA
-            fi
+            python -m unittest tests.test_tritonparse.TestTritonparseCPU
         fi
-        ;;
-    "all")
-        echo "Running all tests..."
-        export CUDA_VISIBLE_DEVICES=0
-        if [ "$COVERAGE" = "true" ]; then
-            echo "Running with coverage..."
-            if [ "$VERBOSE" = "true" ]; then
-                coverage run -m unittest tests.test_tritonparse -v
-            else
-                coverage run -m unittest tests.test_tritonparse
-            fi
-            coverage report
-            coverage xml
+    fi
+    ;;
+"cuda")
+    echo "Running CUDA tests only..."
+    export CUDA_VISIBLE_DEVICES=0
+    if [ "$COVERAGE" = "true" ]; then
+        echo "Running with coverage..."
+        if [ "$VERBOSE" = "true" ]; then
+            coverage run -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
         else
-            if [ "$VERBOSE" = "true" ]; then
-                python -m unittest tests.test_tritonparse -v
-            else
-                python -m unittest tests.test_tritonparse
-            fi
+            coverage run -m unittest tests.test_tritonparse.TestTritonparseCUDA
         fi
-        ;;
-    *)
-        echo "Unknown test type: $TEST_TYPE"
-        echo "Available options: cpu, cuda, all"
-        exit 1
-        ;;
+        coverage report
+        coverage xml
+    else
+        if [ "$VERBOSE" = "true" ]; then
+            python -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
+        else
+            python -m unittest tests.test_tritonparse.TestTritonparseCUDA
+        fi
+    fi
+    ;;
+"all")
+    echo "Running all tests..."
+    export CUDA_VISIBLE_DEVICES=0
+    if [ "$COVERAGE" = "true" ]; then
+        echo "Running with coverage..."
+        if [ "$VERBOSE" = "true" ]; then
+            coverage run -m unittest tests.test_tritonparse -v
+        else
+            coverage run -m unittest tests.test_tritonparse
+        fi
+        coverage report
+        coverage xml
+    else
+        if [ "$VERBOSE" = "true" ]; then
+            python -m unittest tests.test_tritonparse -v
+        else
+            python -m unittest tests.test_tritonparse
+        fi
+    fi
+    ;;
+*)
+    echo "Unknown test type: $TEST_TYPE"
+    echo "Available options: cpu, cuda, all"
+    exit 1
+    ;;
 esac
 
-echo "Tests completed successfully!" 
+echo "Tests completed successfully!"

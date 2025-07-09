@@ -30,4 +30,4 @@ echo "Verifying installation..."
 python -c "import tritonparse; print(f'tritonparse installed successfully')"
 python -c "import coverage; print(f'coverage version: {coverage.__version__}')"
 
-echo "Project installation completed successfully!" 
+echo "Project installation completed successfully!"

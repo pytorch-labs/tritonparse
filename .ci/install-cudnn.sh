@@ -64,11 +64,11 @@ EXTRACTED_DIR="cudnn-linux-${ARCH_PATH}-${CUDNN_VERSION}_cuda12-archive"
 if [ -d "$EXTRACTED_DIR" ]; then
     sudo cp -a "$EXTRACTED_DIR/include/"* "$CUDA_HOME/include/"
     sudo cp -a "$EXTRACTED_DIR/lib/"* "$CUDA_HOME/lib64/"
-    
+
     # Set permissions using find to avoid globbing issues
     sudo find "$CUDA_HOME/include" -name "cudnn*.h" -exec chmod a+r {} \;
     sudo find "$CUDA_HOME/lib64" -name "libcudnn*" -exec chmod a+r {} \;
-    
+
     echo "cuDNN installed successfully"
 else
     echo "ERROR: Extracted directory not found: $EXTRACTED_DIR"

@@ -23,15 +23,15 @@ sudo apt-get update
 echo "Setting up LLVM 17 APT source with modern GPG key handling..."
 
 # Download and install GPG key to /usr/share/keyrings
-curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | \
-  gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg > /dev/null
+curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key |
+    gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
 
 # Make sure key file is readable by _apt
 sudo chmod a+r /usr/share/keyrings/llvm-archive-keyring.gpg
 
 # Write APT source list, explicitly binding keyring file
-echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" | \
-  sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
+echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" |
+    sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
 
 # Update package lists
 sudo apt-get update
@@ -53,7 +53,6 @@ sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev
 echo "Verifying clang installation..."
 clang --version
 clangd --version
-
 
 # Install Miniconda if not already installed
 if [ ! -d "/opt/miniconda3" ]; then

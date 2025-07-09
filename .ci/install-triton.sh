@@ -13,7 +13,6 @@ if [ -z "$CONDA_ENV" ]; then
     exit 1
 fi
 
-
 # Activate conda environment
 source /opt/miniconda3/etc/profile.d/conda.sh
 conda activate "$CONDA_ENV"

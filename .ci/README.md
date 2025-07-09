@@ -140,4 +140,4 @@ The scripts assume:
 - Linux environment
 - Git available
 - Internet access for downloading packages
-- Sufficient disk space for conda and packages 
+- Sufficient disk space for conda and packages
