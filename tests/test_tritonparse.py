@@ -17,11 +17,11 @@ from typing import Any, Union
 import torch
 import triton
 import triton.language as tl
-from triton.compiler import ASTSource, IRSource
-from triton.knobs import CompileTimes
 
 import tritonparse.structured_logging
 import tritonparse.utils
+from triton.compiler import ASTSource, IRSource
+from triton.knobs import CompileTimes
 from tritonparse.structured_logging import convert, extract_python_source_info
 
 
