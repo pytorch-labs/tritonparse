@@ -5,8 +5,7 @@ This directory contains the test suite for tritonparse, including both automated
 ## Test Structure
 
 ### Automated Tests
-- `test_tritonparse.py`: Comprehensive automated test suite
-- `conftest.py`: Pytest configuration and fixtures
+- `test_tritonparse.py`: Comprehensive automated test suite using unittest
 - `__init__.py`: Makes the directory a Python package
 
 ### Manual Test Examples
@@ -30,26 +29,27 @@ pip install -e ".[test]"
 
 #### Running All Tests
 ```bash
-# Using pytest directly
-python -m pytest tests/test_tritonparse.py -v
+# Using unittest directly
+python -m unittest tests.test_tritonparse -v
 
-# With print statements visible
-python -m pytest tests/test_tritonparse.py -s -v
+# With print statements visible (unittest shows prints by default on failure)
+python -m unittest tests.test_tritonparse -v
 
-# With coverage
-python -m pytest tests/test_tritonparse.py --cov=tritonparse --cov-report=html
+# For coverage (requires coverage package)
+coverage run -m unittest tests.test_tritonparse
+coverage html
 ```
 
 #### Running Specific Test Categories
 ```bash
 # CPU-only tests
-python -m pytest tests/test_tritonparse.py -m "not cuda"
+python -m unittest tests.test_tritonparse.TestTritonparseCPU -v
 
 # CUDA tests only (requires CUDA)
-python -m pytest tests/test_tritonparse.py -m cuda
+python -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
 
 # Specific test function
-python -m pytest tests/test_tritonparse.py::test_whole_workflow -s -v
+python -m unittest tests.test_tritonparse.TestTritonparseCUDA.test_whole_workflow -v
 ```
 
 ### Manual Test Example
@@ -63,7 +63,7 @@ The `test_add.py` file serves as a manual test example that demonstrates:
 
 #### Running Manual Test
 ```bash
-# Direct execution (not through pytest)
+# Direct execution (not through unittest)
 TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python tests/test_add.py
 ```
 
@@ -75,25 +75,25 @@ This will:
 ## Test Categories
 
 ### CPU Tests (No CUDA Required)
-- `test_convert()`: Tests data conversion functionality with various data types
-- `test_unified_parse()`: Tests parsing functionality with mock data
+- `TestTritonparseCPU.test_convert()`: Tests data conversion functionality with various data types
 
 ### CUDA Tests (Require GPU)
-- `test_extract_python_source_info()`: Tests Python source code extraction during Triton compilation
-- `test_whole_workflow()`: Tests complete workflow from kernel execution to log parsing
+- `TestTritonparseCUDA.test_extract_python_source_info()`: Tests Python source code extraction during Triton compilation
+- `TestTritonparseCUDA.test_whole_workflow()`: Tests complete workflow from kernel execution to log parsing
 
 ## Test Features
 
-### Fixtures
-- `triton_hooks_setup`: Manages Triton hooks and compilation settings
+### Test Setup
+- `TestTritonparseCUDA.setUp()`: Manages Triton hooks and compilation settings
   - Saves and restores all triton knobs (compilation and runtime hooks)
   - Ensures clean state between tests
   - Automatically restores settings even if tests fail
+- `TestTritonparseCUDA.tearDown()`: Restores original settings after each test
 
 ### CUDA Device Management
-- `cuda_device`: Provides CUDA device for tests
-- `cuda_available`: Checks CUDA availability
-- Automatic skipping of CUDA tests when CUDA is not available
+- Built-in CUDA availability checking in test setUp methods
+- Automatic skipping of CUDA tests when CUDA is not available using `@unittest.skipUnless`
+- Self-managed CUDA device assignment in test classes
 
 ### Kernel Isolation
 Each test function defines its own Triton kernel to avoid compilation cache interference:
@@ -110,35 +110,40 @@ The following environment variables are used during testing:
 
 ## Test Configuration
 
-### Pytest Configuration (`conftest.py`)
-- Custom markers for CUDA tests
-- Automatic CUDA availability checking
-- Fixtures for device management
+### Unittest Configuration
+- CUDA availability checking built into test classes
+- Setup and teardown methods for proper test isolation
+- Class-based organization for logical test grouping
 
 ### Test Isolation
-- Each test function has its own kernel definition
-- Fixtures ensure clean state between tests
+- Each test method has its own kernel definition
+- setUp/tearDown methods ensure clean state between tests
 - Temporary directories are automatically cleaned up
 
 ## Adding New Tests
 
 ### For Automated Tests
-1. Add test functions to `test_tritonparse.py`
-2. Use `@pytest.mark.cuda` for CUDA tests
-3. Use `triton_hooks_setup` fixture for tests that modify Triton settings
-4. Define kernels inside test functions to avoid cache interference
+1. Add test methods to appropriate TestCase classes in `test_tritonparse.py`
+2. Use `@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")` for CUDA tests
+3. Add tests to `TestTritonparseCUDA` class for tests that modify Triton settings (automatic setUp/tearDown)
+4. Define kernels inside test methods to avoid cache interference
 
 Example:
 ```python
-@pytest.mark.cuda
-def test_my_function(cuda_device, triton_hooks_setup):
-    @triton.jit
-    def my_kernel(x_ptr, y_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
-        # Your kernel logic here
+class TestTritonparseCUDA(unittest.TestCase):
+    def setUp(self):
+        # Automatic setup for CUDA tests
         pass
+    
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_my_function(self):
+        @triton.jit
+        def my_kernel(x_ptr, y_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
+            # Your kernel logic here
+            pass
 
-    # Your test code here
-    pass
+        # Your test code here
+        pass
 ```
 
 ### For Manual Tests
@@ -164,7 +169,7 @@ Tests are automatically run on GitHub Actions for:
 ### Debug Mode
 ```bash
 # Run with verbose output and print statements
-python -m pytest tests/test_tritonparse.py -s -v --tb=long
+python -m unittest tests.test_tritonparse -v
 ```
 
 ### Manual Verification
