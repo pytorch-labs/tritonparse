@@ -32,7 +32,7 @@ CONDA_ENV=tritonparse bash .ci/install-triton.sh
 Downloads and installs cuDNN to /usr/local/cuda.
 
 **Environment Variables:**
-- `CUDNN_VERSION`: cuDNN version (default: "9.10.1.4")
+- `CUDNN_VERSION`: cuDNN version (default: "9.10.2.21")
 - `CUDA_VERSION`: CUDA version (default: "12.8")
 - `CUDA_HOME`: CUDA installation path (default: "/usr/local/cuda")
 - `CONDA_ENV`: Conda environment name (optional, for conda fallback)
@@ -43,7 +43,7 @@ Downloads and installs cuDNN to /usr/local/cuda.
 bash .ci/install-cudnn.sh
 
 # Install with custom version
-CUDNN_VERSION=9.10.1.4 CUDA_VERSION=12.8 bash .ci/install-cudnn.sh
+CUDNN_VERSION=9.10.2.21 CUDA_VERSION=12.8 bash .ci/install-cudnn.sh
 
 # Install with custom CUDA path
 CUDA_HOME=/opt/cuda bash .ci/install-cudnn.sh
