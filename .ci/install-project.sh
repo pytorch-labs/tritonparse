@@ -28,6 +28,6 @@ pip install -e ".[test]"
 # Verify installation
 echo "Verifying installation..."
 python -c "import tritonparse; print(f'tritonparse installed successfully')"
-python -c "import pytest; print(f'pytest version: {pytest.__version__}')"
+python -c "import coverage; print(f'coverage version: {coverage.__version__}')"
 
 echo "Project installation completed successfully!" 

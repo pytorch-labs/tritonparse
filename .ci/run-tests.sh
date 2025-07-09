@@ -29,34 +29,66 @@ conda activate "$CONDA_ENV"
 # export TORCHINDUCTOR_FX_GRAPH_CACHE=0
 # export TRITONPARSE_DEBUG=1
 
-# Build pytest command
-PYTEST_CMD="python -m unittest tests.test_tritonparse"
-
-# Add verbose flag
-if [ "$VERBOSE" = "true" ]; then
-    PYTEST_CMD="$PYTEST_CMD -v"
-fi
-
-# Add coverage if requested
-if [ "$COVERAGE" = "true" ]; then
-    PYTEST_CMD="$PYTEST_CMD --cov=tritonparse --cov-report=xml"
-fi
-
-# Run tests based on type
+# Build unittest command based on test type
 case "$TEST_TYPE" in
     "cpu")
         echo "Running CPU tests only..."
-        $PYTEST_CMD -m "not cuda"
+        if [ "$COVERAGE" = "true" ]; then
+            echo "Running with coverage..."
+            if [ "$VERBOSE" = "true" ]; then
+                coverage run -m unittest tests.test_tritonparse.TestTritonparseCPU -v
+            else
+                coverage run -m unittest tests.test_tritonparse.TestTritonparseCPU
+            fi
+            coverage report
+            coverage xml
+        else
+            if [ "$VERBOSE" = "true" ]; then
+                python -m unittest tests.test_tritonparse.TestTritonparseCPU -v
+            else
+                python -m unittest tests.test_tritonparse.TestTritonparseCPU
+            fi
+        fi
         ;;
     "cuda")
         echo "Running CUDA tests only..."
         export CUDA_VISIBLE_DEVICES=0
-        $PYTEST_CMD -m cuda
+        if [ "$COVERAGE" = "true" ]; then
+            echo "Running with coverage..."
+            if [ "$VERBOSE" = "true" ]; then
+                coverage run -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
+            else
+                coverage run -m unittest tests.test_tritonparse.TestTritonparseCUDA
+            fi
+            coverage report
+            coverage xml
+        else
+            if [ "$VERBOSE" = "true" ]; then
+                python -m unittest tests.test_tritonparse.TestTritonparseCUDA -v
+            else
+                python -m unittest tests.test_tritonparse.TestTritonparseCUDA
+            fi
+        fi
         ;;
     "all")
         echo "Running all tests..."
         export CUDA_VISIBLE_DEVICES=0
-        $PYTEST_CMD
+        if [ "$COVERAGE" = "true" ]; then
+            echo "Running with coverage..."
+            if [ "$VERBOSE" = "true" ]; then
+                coverage run -m unittest tests.test_tritonparse -v
+            else
+                coverage run -m unittest tests.test_tritonparse
+            fi
+            coverage report
+            coverage xml
+        else
+            if [ "$VERBOSE" = "true" ]; then
+                python -m unittest tests.test_tritonparse -v
+            else
+                python -m unittest tests.test_tritonparse
+            fi
+        fi
         ;;
     *)
         echo "Unknown test type: $TEST_TYPE"
