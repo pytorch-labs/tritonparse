@@ -10,6 +10,7 @@ TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python tests/test_add.py
 import torch
 import triton
 import triton.language as tl
+
 import tritonparse.structured_logging
 import tritonparse.utils
 

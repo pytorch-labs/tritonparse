@@ -17,11 +17,11 @@ from typing import Any, Union
 import torch
 import triton
 import triton.language as tl
-import tritonparse.structured_logging
-import tritonparse.utils
 from triton.compiler import ASTSource, IRSource
 from triton.knobs import CompileTimes
 
+import tritonparse.structured_logging
+import tritonparse.utils
 from tritonparse.structured_logging import convert, extract_python_source_info
 
 
@@ -85,9 +85,9 @@ class TestTritonparseCUDA(unittest.TestCase):
         # Check if CUDA is available
         if not torch.cuda.is_available():
             self.skipTest("CUDA not available")
-        
+
         self.cuda_device = torch.device("cuda:0")
-        
+
         # Save original settings
         self.prev_listener = triton.knobs.compilation.listener
         self.prev_always_compile = triton.knobs.compilation.always_compile
@@ -223,5 +223,5 @@ class TestTritonparseCUDA(unittest.TestCase):
             shutil.rmtree(temp_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
