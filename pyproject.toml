@@ -17,12 +17,16 @@ test = [
 [tool.setuptools.packages.find]
 include = ["tritonparse*"]
 
-[tool.ruff]
-line-length = 88
-
 [tool.black]
 line-length = 88
 target-version = ["py310"]
+
+[tool.ufmt]
+formatter = "black"
+sorter = "usort"
+
+[tool.usort]
+first_party_detection = false
 
 [project.urls]
 "Homepage" = "https://github.com/pytorch-labs/tritonparse"
