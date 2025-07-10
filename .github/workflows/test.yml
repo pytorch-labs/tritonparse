@@ -2,7 +2,7 @@ name: Tests
 
 on:
     push:
-        branches: [main, develop, findhao/add_linter]
+        branches: [main, develop]
         paths-ignore:
             - "website/**"
             - "docs/**"
