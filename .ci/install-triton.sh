@@ -26,28 +26,25 @@ conda activate "$CONDA_ENV"
 # Create cache directory
 mkdir -p "$TRITON_CACHE_DIR"
 
-# Check if Triton is already installed and working
-if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/dev/null; then
-    echo "Triton is already installed, checking commit compatibility..."
-    
-    # Check if the cached commit matches the target commit
-    if [ -f "$TRITON_CACHE_DIR/commit" ]; then
-        CACHED_COMMIT=$(cat "$TRITON_CACHE_DIR/commit")
-        if [ "$CACHED_COMMIT" = "$TRITON_COMMIT" ] && [ "$TRITON_COMMIT" != "main" ]; then
-            echo "Triton is already installed with correct commit ($CACHED_COMMIT), skipping installation"
-            exit 0
-        elif [ "$TRITON_COMMIT" = "main" ]; then
-            echo "Target is 'main' branch (API fallback), will reinstall to get latest"
-            echo "Cached commit: $CACHED_COMMIT"
-        else
-            echo "Triton installed but commit mismatch: cached=$CACHED_COMMIT, target=$TRITON_COMMIT"
-            echo "Will reinstall Triton..."
-        fi
+# Check if we have cached source with correct commit
+if [ -f "$TRITON_CACHE_DIR/commit" ] && [ -d "$TRITON_SOURCE_DIR" ]; then
+    CACHED_COMMIT=$(cat "$TRITON_CACHE_DIR/commit")
+    if [ "$CACHED_COMMIT" = "$TRITON_COMMIT" ] && [ "$TRITON_COMMIT" != "main" ]; then
+        echo "Found cached Triton source with correct commit ($CACHED_COMMIT)"
+        echo "Will use cached source and re-install to new conda environment"
+        USE_CACHED_SOURCE=true
+    elif [ "$TRITON_COMMIT" = "main" ]; then
+        echo "Target is 'main' branch (API fallback), will rebuild from scratch"
+        echo "Cached commit: $CACHED_COMMIT"
+        USE_CACHED_SOURCE=false
     else
-        echo "Triton installed but no commit info found, will reinstall..."
+        echo "Cached source commit mismatch: cached=$CACHED_COMMIT, target=$TRITON_COMMIT"
+        echo "Will rebuild from scratch"
+        USE_CACHED_SOURCE=false
     fi
 else
-    echo "Triton not installed or not working, proceeding with installation..."
+    echo "No cached source found or no commit info, will build from scratch"
+    USE_CACHED_SOURCE=false
 fi
 
 # Update libstdc++ to match system version
@@ -71,25 +68,28 @@ if [ -n "$TRITON_PKG_DIR" ] && [ -d "$TRITON_PKG_DIR" ]; then
     rm -rf "$TRITON_PKG_DIR"
 fi
 
-# Clone or update Triton repository
-echo "Setting up Triton repository..."
-if [ -d "$TRITON_SOURCE_DIR" ]; then
+# Setup Triton repository based on cache status
+if [ "$USE_CACHED_SOURCE" = "true" ]; then
     echo "Using cached Triton source..."
     cd "$TRITON_SOURCE_DIR"
-    # Reset to clean state and fetch latest
-    git reset --hard HEAD
-    git clean -fd
-    git fetch origin
+    ACTUAL_COMMIT=$(git rev-parse HEAD)
+    echo "Using cached Triton commit: $ACTUAL_COMMIT"
 else
+    echo "Setting up Triton repository from scratch..."
+    if [ -d "$TRITON_SOURCE_DIR" ]; then
+        echo "Removing existing source directory..."
+        rm -rf "$TRITON_SOURCE_DIR"
+    fi
+
     echo "Cloning Triton repository..."
     git clone https://github.com/triton-lang/triton.git "$TRITON_SOURCE_DIR"
     cd "$TRITON_SOURCE_DIR"
-fi
 
-# Checkout specific commit for reproducibility
-git checkout "$TRITON_COMMIT"
-ACTUAL_COMMIT=$(git rev-parse HEAD)
-echo "Using Triton commit: $ACTUAL_COMMIT"
+    # Checkout specific commit for reproducibility
+    git checkout "$TRITON_COMMIT"
+    ACTUAL_COMMIT=$(git rev-parse HEAD)
+    echo "Using Triton commit: $ACTUAL_COMMIT"
+fi
 
 # Install build dependencies
 echo "Installing build dependencies..."
@@ -107,7 +107,13 @@ echo "Using CC: $CC"
 echo "Using CXX: $CXX"
 
 # Install Triton in editable mode with clang
-echo "Installing Triton in editable mode with clang..."
+if [ "$USE_CACHED_SOURCE" = "true" ]; then
+    echo "Installing cached Triton to new conda environment..."
+    echo "This should be fast since build artifacts are cached"
+else
+    echo "Compiling and installing Triton from scratch..."
+    echo "This will take 30-50 minutes for compilation"
+fi
 pip install -e .
 
 # Verify Triton installation
@@ -124,6 +130,6 @@ python -c "import triton; print(f'Triton version: {triton.__version__}')" || {
 python -c "import triton; print(f'Triton path: {triton.__file__}')"
 
 # Save commit info for cache validation
-echo "$ACTUAL_COMMIT" > "$TRITON_CACHE_DIR/commit"
+echo "$ACTUAL_COMMIT" >"$TRITON_CACHE_DIR/commit"
 
 echo "Triton installation completed successfully!"

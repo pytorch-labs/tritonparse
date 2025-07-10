@@ -42,14 +42,6 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-pip-3.11-
 
-            - name: Cache Conda
-              uses: actions/cache@v3
-              with:
-                  path: /opt/miniconda3
-                  key: ${{ runner.os }}-conda-${{ hashFiles('.ci/setup.sh') }}
-                  restore-keys: |
-                      ${{ runner.os }}-conda-
-
             - name: Get Triton latest commit
               id: triton-commit
               run: |
@@ -67,17 +59,16 @@ jobs:
                       echo "Using fallback cache key with timestamp: main-fallback-$TIMESTAMP"
                   fi
 
-            - name: Cache Triton build
+            - name: Cache Triton source and build
               uses: actions/cache@v3
               with:
                   path: |
                       /tmp/triton
                       /tmp/triton-cache
-                      /opt/miniconda3/envs/tritonparse/lib/python3.11/site-packages/triton*
-                  key: ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-${{ steps.triton-commit.outputs.cache-key }}
+                  key: ${{ runner.os }}-triton-source-${{ hashFiles('.ci/install-triton.sh') }}-${{ steps.triton-commit.outputs.cache-key }}
                   restore-keys: |
-                      ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-
-                      ${{ runner.os }}-triton-
+                      ${{ runner.os }}-triton-source-${{ hashFiles('.ci/install-triton.sh') }}-
+                      ${{ runner.os }}-triton-source-
 
             - name: Setup environment
               env:
