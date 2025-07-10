@@ -45,18 +45,27 @@ jobs:
             - name: Get Triton latest commit
               id: triton-commit
               run: |
-                  COMMIT=$(curl -s --max-time 30 https://api.github.com/repos/triton-lang/triton/commits/main | jq -r .sha)
+                  # Check if jq is available
+                  if ! command -v jq &> /dev/null; then
+                      echo "jq not found, installing..."
+                      sudo apt-get update && sudo apt-get install -y jq
+                  fi
+                  
+                  # Get commit with error handling
+                  echo "Fetching latest Triton commit..."
+                  COMMIT=$(curl -s --max-time 30 --retry 3 https://api.github.com/repos/triton-lang/triton/commits/main | jq -r .sha 2>/dev/null || echo "")
+                  
                   if [ -n "$COMMIT" ] && [ "$COMMIT" != "null" ]; then
                       echo "commit=$COMMIT" >> $GITHUB_OUTPUT
                       echo "cache-key=$COMMIT" >> $GITHUB_OUTPUT
-                      echo "Using Triton commit: $COMMIT"
+                      echo "✅ Using Triton commit: $COMMIT"
                   else
-                      echo "Failed to get Triton commit, using 'main' as fallback"
+                      echo "❌ Failed to get Triton commit, using 'main' as fallback"
                       # Force cache miss by using timestamp when API fails
                       TIMESTAMP=$(date +%Y%m%d%H%M%S)
                       echo "commit=main" >> $GITHUB_OUTPUT
                       echo "cache-key=main-fallback-$TIMESTAMP" >> $GITHUB_OUTPUT
-                      echo "Using fallback cache key with timestamp: main-fallback-$TIMESTAMP"
+                      echo "⚠️ Using fallback cache key: main-fallback-$TIMESTAMP"
                   fi
 
             - name: Cache Triton source and build
