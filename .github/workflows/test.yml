@@ -2,9 +2,19 @@ name: Tests
 
 on:
     push:
-        branches: [main, develop, findhao/setup_ci]
+        branches: [main, develop]
+        paths-ignore:
+            - 'website/**'
+            - 'docs/**'
+            - '*.md'
+            - '.gitignore'
     pull_request:
         branches: [main]
+        paths-ignore:
+            - 'website/**'
+            - 'docs/**'
+            - '*.md'
+            - '.gitignore'
     workflow_dispatch:
         inputs:
             test-type:
