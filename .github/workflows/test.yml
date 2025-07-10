@@ -34,6 +34,32 @@ jobs:
               with:
                   python-version: "3.11"
 
+            - name: Cache pip dependencies
+              uses: actions/cache@v3
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-3.11-${{ hashFiles('**/pyproject.toml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-3.11-
+
+            - name: Cache Conda
+              uses: actions/cache@v3
+              with:
+                  path: /opt/miniconda3
+                  key: ${{ runner.os }}-conda-${{ hashFiles('.ci/setup.sh') }}
+                  restore-keys: |
+                      ${{ runner.os }}-conda-
+
+            - name: Cache Triton build
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      ~/.triton
+                      /tmp/triton
+                  key: ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}
+                  restore-keys: |
+                      ${{ runner.os }}-triton-
+
             - name: Setup environment
               env:
                   CONDA_ENV: tritonparse
@@ -53,14 +79,6 @@ jobs:
                   CONDA_ENV: tritonparse
               run: |
                   bash .ci/install-project.sh
-
-            - name: Cache pip dependencies
-              uses: actions/cache@v3
-              with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-3.11-${{ hashFiles('**/pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-pip-3.11-
 
             - name: Run tests
               env:

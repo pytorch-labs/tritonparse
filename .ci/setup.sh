@@ -89,10 +89,24 @@ fi
 # Detect CUDA version
 echo "Detecting CUDA version..."
 if [ -d "/usr/local/cuda" ]; then
-    DETECTED_CUDA=$(ls -la /usr/local/cuda | grep -o 'cuda-[0-9.]*' | head -1 | sed 's/cuda-//')
-    if [ -n "$DETECTED_CUDA" ]; then
-        CUDA_VERSION="$DETECTED_CUDA"
-        echo "Found CUDA version: $CUDA_VERSION"
+    # Use readlink to safely get the target of the symlink
+    if [ -L "/usr/local/cuda" ]; then
+        CUDA_TARGET=$(readlink /usr/local/cuda)
+        if [[ "$CUDA_TARGET" =~ cuda-([0-9.]+) ]]; then
+            DETECTED_CUDA="${BASH_REMATCH[1]}"
+            CUDA_VERSION="$DETECTED_CUDA"
+            echo "Found CUDA version: $CUDA_VERSION"
+        fi
+    else
+        # If not a symlink, try to find cuda-* directories
+        for cuda_dir in /usr/local/cuda-*; do
+            if [ -d "$cuda_dir" ]; then
+                DETECTED_CUDA=$(basename "$cuda_dir" | sed 's/cuda-//')
+                CUDA_VERSION="$DETECTED_CUDA"
+                echo "Found CUDA version: $CUDA_VERSION"
+                break
+            fi
+        done
     fi
     export CUDA_HOME="/usr/local/cuda"
 else
