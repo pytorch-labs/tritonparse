@@ -18,7 +18,6 @@ show_elapsed() {
 # Pre-flight checks
 echo "🔍 Running pre-flight checks..."
 
-
 # Set Triton version/commit for cache consistency
 TRITON_COMMIT=${TRITON_COMMIT:-"main"}
 echo "🎯 Target Triton commit/branch: $TRITON_COMMIT"
@@ -27,11 +26,11 @@ TRITON_SOURCE_DIR="/tmp/triton"
 
 # Check disk space (need at least 10GB for Triton compilation)
 AVAILABLE_SPACE=$(df /tmp | tail -1 | awk '{print $4}')
-REQUIRED_SPACE=10485760  # 10GB in KB
+REQUIRED_SPACE=10485760 # 10GB in KB
 if [ "$AVAILABLE_SPACE" -lt "$REQUIRED_SPACE" ]; then
-    echo "⚠️ WARNING: Low disk space. Available: $(($AVAILABLE_SPACE/1024/1024))GB, Recommended: 10GB"
+    echo "⚠️ WARNING: Low disk space. Available: $(($AVAILABLE_SPACE / 1024 / 1024))GB, Recommended: 10GB"
 else
-    echo "✅ Sufficient disk space available: $(($AVAILABLE_SPACE/1024/1024))GB"
+    echo "✅ Sufficient disk space available: $(($AVAILABLE_SPACE / 1024 / 1024))GB"
 fi
 
 # Ensure we're in the conda environment
@@ -101,7 +100,7 @@ else
         echo "This might be due to network issues or GitHub rate limiting"
         exit 1
     fi
-    
+
     cd "$TRITON_SOURCE_DIR"
 
     # Checkout specific commit for reproducibility
@@ -111,7 +110,7 @@ else
         echo "This might be due to an invalid commit hash or network issues"
         exit 1
     fi
-    
+
     ACTUAL_COMMIT=$(git rev-parse HEAD)
     echo "✅ Using Triton commit: $ACTUAL_COMMIT"
 fi
@@ -147,11 +146,11 @@ echo "Verifying Triton installation..."
 if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/dev/null; then
     python -c "import triton; print(f'Triton path: {triton.__file__}')"
     echo "✅ Triton installation verified successfully"
-    
+
     # Only save commit info after successful verification
     echo "$ACTUAL_COMMIT" >"$TRITON_CACHE_DIR/commit"
     echo "✅ Cache information saved"
-    
+
     show_elapsed
     echo "🎉 Triton installation completed successfully!"
 else
@@ -161,10 +160,10 @@ else
     strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX | tail -5 || echo "Could not check system libstdc++"
     echo "Checking conda libstdc++ version:"
     strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5 || echo "Could not check conda libstdc++"
-    
+
     # Clean up cache on failure to prevent corruption
     echo "🧹 Cleaning up cache due to installation failure..."
     rm -f "$TRITON_CACHE_DIR/commit"
-    
+
     exit 1
 fi

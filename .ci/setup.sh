@@ -35,7 +35,7 @@ NEED_SOURCE_UPDATE=false
 # Check if LLVM source is already configured
 if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-jammy-17.list" ]; then
     echo "📝 Configuring LLVM APT source..."
-    
+
     # Download and install GPG key to /usr/share/keyrings
     curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key |
         gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
@@ -64,13 +64,13 @@ elif [ "$NEED_SOURCE_UPDATE" = "true" ]; then
     APT_UPDATED=true
 else
     echo "🔄 Updating package lists (no cache available)..."
-    sudo apt-get update  
+    sudo apt-get update
     APT_UPDATED=true
 fi
 
 # Install clang and clangd first
 echo "Installing clang and clangd..."
-if command -v clang-17 &> /dev/null && command -v clangd-17 &> /dev/null; then
+if command -v clang-17 &>/dev/null && command -v clangd-17 &>/dev/null; then
     echo "✅ clang-17 and clangd-17 already installed"
 else
     echo "📦 Installing clang-17 and clangd-17..."
@@ -89,7 +89,7 @@ echo "Installing CUDA and development libraries..."
 CUDA_VERSION_REQUIRED="12.8"
 HAS_CORRECT_CUDA=false
 
-if command -v nvcc &> /dev/null; then
+if command -v nvcc &>/dev/null; then
     # Get CUDA version from nvcc
     INSTALLED_CUDA_VERSION=$(nvcc --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
     if [ "$INSTALLED_CUDA_VERSION" = "$CUDA_VERSION_REQUIRED" ]; then
@@ -115,7 +115,7 @@ else
         sudo apt-get update
         APT_UPDATED=true
     fi
-    
+
     echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED and development libraries..."
     # Install all packages including CUDA toolkit (this is the big download)
     sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
@@ -188,9 +188,13 @@ fi
 export CUDA_VERSION="$CUDA_VERSION"
 echo "Using CUDA version: $CUDA_VERSION"
 
-# Install cuDNN
-echo "Installing cuDNN..."
-bash .ci/install-cudnn.sh
+# Set cuDNN version for installation
+export CUDNN_VERSION=${CUDNN_VERSION:-"9.10.2.21"}
+echo "Using cuDNN version: $CUDNN_VERSION"
+
+# Install cuDNN using PyTorch's script
+echo "Installing cuDNN using PyTorch's script..."
+curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cudnn.sh | bash
 
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."

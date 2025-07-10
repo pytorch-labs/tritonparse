@@ -4,17 +4,17 @@ on:
     push:
         branches: [main, develop]
         paths-ignore:
-            - 'website/**'
-            - 'docs/**'
-            - '*.md'
-            - '.gitignore'
+            - "website/**"
+            - "docs/**"
+            - "*.md"
+            - ".gitignore"
     pull_request:
         branches: [main]
         paths-ignore:
-            - 'website/**'
-            - 'docs/**'
-            - '*.md'
-            - '.gitignore'
+            - "website/**"
+            - "docs/**"
+            - "*.md"
+            - ".gitignore"
     workflow_dispatch:
         inputs:
             test-type:
@@ -52,7 +52,7 @@ jobs:
                   echo "date=$DATE_STAMP" >> $GITHUB_OUTPUT
                   echo "Using daily cache stamp: $DATE_STAMP"
 
-            - name: Get weekly cache timestamp  
+            - name: Get weekly cache timestamp
               id: weekly-cache
               run: |
                   # Calculate year-week (e.g., 2024-03) for weekly cache expiration
@@ -87,11 +87,11 @@ jobs:
                       echo "jq not found, installing..."
                       sudo apt-get update && sudo apt-get install -y jq
                   fi
-                  
+
                   # Get commit with error handling
                   echo "Fetching latest Triton commit..."
                   COMMIT=$(curl -s --max-time 30 --retry 3 https://api.github.com/repos/triton-lang/triton/commits/main | jq -r .sha 2>/dev/null || echo "")
-                  
+
                   if [ -n "$COMMIT" ] && [ "$COMMIT" != "null" ]; then
                       echo "commit=$COMMIT" >> $GITHUB_OUTPUT
                       echo "cache-key=$COMMIT" >> $GITHUB_OUTPUT
