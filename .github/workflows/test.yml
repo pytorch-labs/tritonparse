@@ -50,6 +50,23 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-conda-
 
+            - name: Get Triton latest commit
+              id: triton-commit
+              run: |
+                  COMMIT=$(curl -s --max-time 30 https://api.github.com/repos/triton-lang/triton/commits/main | jq -r .sha)
+                  if [ -n "$COMMIT" ] && [ "$COMMIT" != "null" ]; then
+                      echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+                      echo "cache-key=$COMMIT" >> $GITHUB_OUTPUT
+                      echo "Using Triton commit: $COMMIT"
+                  else
+                      echo "Failed to get Triton commit, using 'main' as fallback"
+                      # Force cache miss by using timestamp when API fails
+                      TIMESTAMP=$(date +%Y%m%d%H%M%S)
+                      echo "commit=main" >> $GITHUB_OUTPUT
+                      echo "cache-key=main-fallback-$TIMESTAMP" >> $GITHUB_OUTPUT
+                      echo "Using fallback cache key with timestamp: main-fallback-$TIMESTAMP"
+                  fi
+
             - name: Cache Triton build
               uses: actions/cache@v3
               with:
@@ -57,7 +74,7 @@ jobs:
                       /tmp/triton
                       /tmp/triton-cache
                       /opt/miniconda3/envs/tritonparse/lib/python3.11/site-packages/triton*
-                  key: ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-main
+                  key: ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-${{ steps.triton-commit.outputs.cache-key }}
                   restore-keys: |
                       ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-
                       ${{ runner.os }}-triton-
@@ -73,6 +90,7 @@ jobs:
             - name: Install Triton from source
               env:
                   CONDA_ENV: tritonparse
+                  TRITON_COMMIT: ${{ steps.triton-commit.outputs.commit }}
               run: |
                   bash .ci/install-triton.sh
 

@@ -9,6 +9,7 @@ echo "Installing Triton from source..."
 
 # Set Triton version/commit for cache consistency
 TRITON_COMMIT=${TRITON_COMMIT:-"main"}
+echo "Target Triton commit/branch: $TRITON_COMMIT"
 TRITON_CACHE_DIR="/tmp/triton-cache"
 TRITON_SOURCE_DIR="/tmp/triton"
 
@@ -21,6 +22,33 @@ fi
 # Activate conda environment
 source /opt/miniconda3/etc/profile.d/conda.sh
 conda activate "$CONDA_ENV"
+
+# Create cache directory
+mkdir -p "$TRITON_CACHE_DIR"
+
+# Check if Triton is already installed and working
+if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/dev/null; then
+    echo "Triton is already installed, checking commit compatibility..."
+    
+    # Check if the cached commit matches the target commit
+    if [ -f "$TRITON_CACHE_DIR/commit" ]; then
+        CACHED_COMMIT=$(cat "$TRITON_CACHE_DIR/commit")
+        if [ "$CACHED_COMMIT" = "$TRITON_COMMIT" ] && [ "$TRITON_COMMIT" != "main" ]; then
+            echo "Triton is already installed with correct commit ($CACHED_COMMIT), skipping installation"
+            exit 0
+        elif [ "$TRITON_COMMIT" = "main" ]; then
+            echo "Target is 'main' branch (API fallback), will reinstall to get latest"
+            echo "Cached commit: $CACHED_COMMIT"
+        else
+            echo "Triton installed but commit mismatch: cached=$CACHED_COMMIT, target=$TRITON_COMMIT"
+            echo "Will reinstall Triton..."
+        fi
+    else
+        echo "Triton installed but no commit info found, will reinstall..."
+    fi
+else
+    echo "Triton not installed or not working, proceeding with installation..."
+fi
 
 # Update libstdc++ to match system version
 # Otherwise, we get errors like:
@@ -42,9 +70,6 @@ if [ -n "$TRITON_PKG_DIR" ] && [ -d "$TRITON_PKG_DIR" ]; then
     echo "Removing existing Triton installation: $TRITON_PKG_DIR"
     rm -rf "$TRITON_PKG_DIR"
 fi
-
-# Create cache directory
-mkdir -p "$TRITON_CACHE_DIR"
 
 # Clone or update Triton repository
 echo "Setting up Triton repository..."
