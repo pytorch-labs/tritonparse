@@ -34,11 +34,19 @@ jobs:
               with:
                   python-version: "3.11"
 
+            - name: Get daily cache timestamp
+              id: daily-cache
+              run: |
+                  # Calculate date (e.g., 2024-01-15) for daily cache expiration
+                  DATE_STAMP=$(date +"%Y-%m-%d")
+                  echo "date=$DATE_STAMP" >> $GITHUB_OUTPUT
+                  echo "Using daily cache stamp: $DATE_STAMP"
+
             - name: Cache pip dependencies
               uses: actions/cache@v3
               with:
                   path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-3.11-${{ hashFiles('**/pyproject.toml') }}
+                  key: ${{ runner.os }}-pip-3.11-${{ steps.daily-cache.outputs.date }}
                   restore-keys: |
                       ${{ runner.os }}-pip-3.11-
 
