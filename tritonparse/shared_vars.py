@@ -6,3 +6,4 @@ import os
 DEFAULT_TRACE_FILE_PREFIX = (
     f"dedicated_log_triton_trace_{os.getenv('USER', 'unknown')}_"
 )
+DEFAULT_TRACE_FILE_PREFIX_WITHOUT_USER = "dedicated_log_triton_trace_"

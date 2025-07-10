@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from .extract_source_mappings import parse_single_file
-from .shared_vars import DEFAULT_TRACE_FILE_PREFIX as LOG_PREFIX
+from .shared_vars import DEFAULT_TRACE_FILE_PREFIX_WITHOUT_USER as LOG_PREFIX
 from .tp_logger import logger
 
 LOG_RANK_REGEX = re.compile(r"rank_(\d+)")
@@ -285,8 +285,9 @@ def parse_logs(
         path = os.path.join(raw_log_dir, item)
         if not os.path.isfile(path):
             continue
-        log_name = f"{LOG_PREFIX}{rank_config.to_rank().to_string('')}"
-        if log_name in item:
+        log_name = f"{LOG_PREFIX}.*{rank_config.to_rank().to_string('')}"
+        pattern = re.compile(log_name)
+        if pattern.search(item):
             # Check if the log has a rank in its name
             rank_match = LOG_RANK_REGEX.search(item)
             if rank_match:
