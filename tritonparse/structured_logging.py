@@ -142,6 +142,8 @@ def convert(obj):
     Returns:
         A serializable version of the input object where dataclasses are converted to dictionaries
     """
+    from triton.language.core import dtype
+
     # 1. primitives that JSON already supports  -------------------------------
     if obj is None or isinstance(obj, (bool, int, str)):
         return obj
@@ -176,6 +178,11 @@ def convert(obj):
         return convert(
             asdict(obj)
         )  # Convert dataclass to dict and then process that dict
+
+    # 4. Common Triton constexpr objects
+    if isinstance(obj, dtype):
+        return f"triton.language.core.dtype('{str(obj)}')"
+
     log.warning(f"Unknown type: {type(obj)}")
     return str(obj)  # Return primitive types as-is
 
