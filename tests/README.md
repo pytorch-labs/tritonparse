@@ -154,8 +154,7 @@ class TestTritonparseCUDA(unittest.TestCase):
 ## Continuous Integration
 
 Tests are automatically run on GitHub Actions for:
-- Multiple Python versions (3.9, 3.10, 3.11)
-- CUDA versions (11.8, 12.1)
+- CUDA versions (12.8)
 - Code coverage reporting
 - Linting and formatting checks
 
