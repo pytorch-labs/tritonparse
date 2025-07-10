@@ -82,13 +82,6 @@ echo "Uninstalling existing pytorch-triton..."
 pip uninstall -y pytorch-triton || true
 pip uninstall -y triton || true
 
-# Remove existing triton installation
-TRITON_PKG_DIR=$(python -c "import triton; import os; print(os.path.dirname(triton.__file__))" 2>/dev/null || echo "")
-if [ -n "$TRITON_PKG_DIR" ] && [ -d "$TRITON_PKG_DIR" ]; then
-    echo "Removing existing Triton installation: $TRITON_PKG_DIR"
-    rm -rf "$TRITON_PKG_DIR"
-fi
-
 # Setup Triton repository based on cache status
 if [ "$USE_CACHED_SOURCE" = "true" ]; then
     echo "Using cached Triton source..."
