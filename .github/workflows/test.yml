@@ -2,9 +2,19 @@ name: Tests
 
 on:
     push:
-        branches: [main, develop, findhao/setup_ci, findhao/add_linter]
+        branches: [main, develop, findhao/add_linter]
+        paths-ignore:
+            - "website/**"
+            - "docs/**"
+            - "*.md"
+            - ".gitignore"
     pull_request:
         branches: [main]
+        paths-ignore:
+            - "website/**"
+            - "docs/**"
+            - "*.md"
+            - ".gitignore"
     workflow_dispatch:
         inputs:
             test-type:
@@ -34,14 +44,6 @@ jobs:
               with:
                   python-version: "3.11"
 
-            - name: Cache pip dependencies
-              uses: actions/cache@v3
-              with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-format-${{ hashFiles('**/pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-pip-format-
-
             - name: Install development dependencies
               run: |
                   make install-dev
@@ -66,6 +68,78 @@ jobs:
               with:
                   python-version: "3.11"
 
+            - name: Get daily cache timestamp
+              id: daily-cache
+              run: |
+                  # Calculate date (e.g., 2024-01-15) for daily cache expiration
+                  DATE_STAMP=$(date +"%Y-%m-%d")
+                  echo "date=$DATE_STAMP" >> $GITHUB_OUTPUT
+                  echo "Using daily cache stamp: $DATE_STAMP"
+
+            - name: Get weekly cache timestamp
+              id: weekly-cache
+              run: |
+                  # Calculate year-week (e.g., 2024-03) for weekly cache expiration
+                  WEEK_STAMP=$(date +"%Y-%U")
+                  echo "week=$WEEK_STAMP" >> $GITHUB_OUTPUT
+                  echo "Using weekly cache stamp: $WEEK_STAMP"
+
+            - name: Cache pip dependencies
+              uses: actions/cache@v3
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-3.11-${{ steps.daily-cache.outputs.date }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-3.11-
+
+            - name: Cache APT packages
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      /var/cache/apt/archives
+                      /var/lib/apt/lists
+                  key: ${{ runner.os }}-apt-${{ hashFiles('.ci/setup.sh') }}-${{ steps.weekly-cache.outputs.week }}
+                  restore-keys: |
+                      ${{ runner.os }}-apt-${{ hashFiles('.ci/setup.sh') }}-
+                      ${{ runner.os }}-apt-
+
+            - name: Get Triton latest commit
+              id: triton-commit
+              run: |
+                  # Check if jq is available
+                  if ! command -v jq &> /dev/null; then
+                      echo "jq not found, installing..."
+                      sudo apt-get update && sudo apt-get install -y jq
+                  fi
+
+                  # Get commit with error handling
+                  echo "Fetching latest Triton commit..."
+                  COMMIT=$(curl -s --max-time 30 --retry 3 https://api.github.com/repos/triton-lang/triton/commits/main | jq -r .sha 2>/dev/null || echo "")
+
+                  if [ -n "$COMMIT" ] && [ "$COMMIT" != "null" ]; then
+                      echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+                      echo "cache-key=$COMMIT" >> $GITHUB_OUTPUT
+                      echo "✅ Using Triton commit: $COMMIT"
+                  else
+                      echo "❌ Failed to get Triton commit, using 'main' as fallback"
+                      # Force cache miss by using timestamp when API fails
+                      TIMESTAMP=$(date +%Y%m%d%H%M%S)
+                      echo "commit=main" >> $GITHUB_OUTPUT
+                      echo "cache-key=main-fallback-$TIMESTAMP" >> $GITHUB_OUTPUT
+                      echo "⚠️ Using fallback cache key: main-fallback-$TIMESTAMP"
+                  fi
+
+            - name: Cache Triton source and build
+              uses: actions/cache@v3
+              with:
+                  path: |
+                      /tmp/triton
+                      /tmp/triton-cache
+                  key: ${{ runner.os }}-triton-source-${{ hashFiles('.ci/install-triton.sh') }}-${{ steps.triton-commit.outputs.cache-key }}
+                  restore-keys: |
+                      ${{ runner.os }}-triton-source-${{ hashFiles('.ci/install-triton.sh') }}-
+                      ${{ runner.os }}-triton-source-
+
             - name: Setup environment
               env:
                   CONDA_ENV: tritonparse
@@ -77,6 +151,7 @@ jobs:
             - name: Install Triton from source
               env:
                   CONDA_ENV: tritonparse
+                  TRITON_COMMIT: ${{ steps.triton-commit.outputs.commit }}
               run: |
                   bash .ci/install-triton.sh
 
@@ -85,14 +160,6 @@ jobs:
                   CONDA_ENV: tritonparse
               run: |
                   bash .ci/install-project.sh
-
-            - name: Cache pip dependencies
-              uses: actions/cache@v3
-              with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-3.11-${{ hashFiles('**/pyproject.toml') }}
-                  restore-keys: |
-                      ${{ runner.os }}-pip-3.11-
 
             - name: Run tests
               env:

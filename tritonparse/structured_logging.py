@@ -142,8 +142,6 @@ def convert(obj):
     Returns:
         A serializable version of the input object where dataclasses are converted to dictionaries
     """
-    from triton.language.core import dtype
-
     # 1. primitives that JSON already supports  -------------------------------
     if obj is None or isinstance(obj, (bool, int, str)):
         return obj
@@ -178,11 +176,6 @@ def convert(obj):
         return convert(
             asdict(obj)
         )  # Convert dataclass to dict and then process that dict
-
-    # 4. Common Triton constexpr objects
-    if isinstance(obj, dtype):
-        return f"triton.language.core.dtype('{str(obj)}')"
-
     log.warning(f"Unknown type: {type(obj)}")
     return str(obj)  # Return primitive types as-is
 
@@ -378,18 +371,18 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                 # Check file size before reading to avoid memory issues
                 file_size = os.path.getsize(file_path)
                 if file_size > MAX_FILE_SIZE:
-                    trace_data["file_content"][ir_filename] = (
-                        f"<file too large: {file_size} bytes>"
-                    )
+                    trace_data["file_content"][
+                        ir_filename
+                    ] = f"<file too large: {file_size} bytes>"
                     continue
 
                 with open(file_path, "r") as f:
                     trace_data["file_content"][ir_filename] = f.read()
             except (UnicodeDecodeError, OSError) as e:
                 # add more specific error type
-                trace_data["file_content"][ir_filename] = (
-                    f"<error reading file: {str(e)}>"
-                )
+                trace_data["file_content"][
+                    ir_filename
+                ] = f"<error reading file: {str(e)}>"
                 log.debug(f"Error reading file {file_path}: {e}")
 
 

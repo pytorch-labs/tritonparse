@@ -6,9 +6,6 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-# argument parser for OSS
-parser = None
-
 from .common import (
     copy_local_to_tmpdir,
     is_fbcode,
@@ -18,6 +15,9 @@ from .common import (
     save_logs,
 )
 from .source_type import Source, SourceType
+
+# argument parser for OSS
+parser = None
 
 
 def init_parser():
