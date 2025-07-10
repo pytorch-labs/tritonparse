@@ -17,28 +17,65 @@ echo "CUDA_VERSION: $CUDA_VERSION"
 
 # Install system dependencies
 echo "Installing system dependencies..."
-sudo apt-get update
+
+# Check if we have cached APT lists (indicates cache hit)
+HAS_APT_CACHE=false
+if [ -f "/var/lib/apt/lists/lock" ] || [ "$(ls -A /var/lib/apt/lists/ 2>/dev/null | wc -l)" -gt 5 ]; then
+    echo "✅ Detected cached APT package lists"
+    HAS_APT_CACHE=true
+else
+    echo "📦 No APT cache found"
+    HAS_APT_CACHE=false
+fi
 
 # Set up LLVM 17 APT source with modern GPG key handling
-echo "Setting up LLVM 17 APT source with modern GPG key handling..."
+echo "Setting up LLVM 17 APT source..."
+NEED_SOURCE_UPDATE=false
 
-# Download and install GPG key to /usr/share/keyrings
-curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key |
-    gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
+# Check if LLVM source is already configured
+if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-jammy-17.list" ]; then
+    echo "📝 Configuring LLVM APT source..."
+    
+    # Download and install GPG key to /usr/share/keyrings
+    curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key |
+        gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
 
-# Make sure key file is readable by _apt
-sudo chmod a+r /usr/share/keyrings/llvm-archive-keyring.gpg
+    # Make sure key file is readable by _apt
+    sudo chmod a+r /usr/share/keyrings/llvm-archive-keyring.gpg
 
-# Write APT source list, explicitly binding keyring file
-echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" |
-    sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
+    # Write APT source list, explicitly binding keyring file
+    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" |
+        sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
 
-# Update package lists
-sudo apt-get update
+    NEED_SOURCE_UPDATE=true
+    echo "✅ LLVM APT source configured"
+else
+    echo "✅ LLVM APT source already configured"
+fi
+
+# Smart APT update strategy
+APT_UPDATED=false
+if [ "$HAS_APT_CACHE" = "true" ] && [ "$NEED_SOURCE_UPDATE" = "false" ]; then
+    echo "🚀 Using cached package lists, skipping initial update"
+    APT_UPDATED=false
+elif [ "$NEED_SOURCE_UPDATE" = "true" ]; then
+    echo "🔄 Updating package lists (new source added)..."
+    sudo apt-get update
+    APT_UPDATED=true
+else
+    echo "🔄 Updating package lists (no cache available)..."
+    sudo apt-get update  
+    APT_UPDATED=true
+fi
 
 # Install clang and clangd first
 echo "Installing clang and clangd..."
-sudo apt-get install -y clang-17 clangd-17
+if command -v clang-17 &> /dev/null && command -v clangd-17 &> /dev/null; then
+    echo "✅ clang-17 and clangd-17 already installed"
+else
+    echo "📦 Installing clang-17 and clangd-17..."
+    sudo apt-get install -y clang-17 clangd-17
+fi
 
 # Set up clang alternatives
 sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
@@ -47,7 +84,42 @@ sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-17 100
 
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
-sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
+
+# Check for specific CUDA 12.8 version
+CUDA_VERSION_REQUIRED="12.8"
+HAS_CORRECT_CUDA=false
+
+if command -v nvcc &> /dev/null; then
+    # Get CUDA version from nvcc
+    INSTALLED_CUDA_VERSION=$(nvcc --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
+    if [ "$INSTALLED_CUDA_VERSION" = "$CUDA_VERSION_REQUIRED" ]; then
+        echo "✅ CUDA $CUDA_VERSION_REQUIRED already installed"
+        HAS_CORRECT_CUDA=true
+    else
+        echo "⚠️ Found CUDA $INSTALLED_CUDA_VERSION, but need $CUDA_VERSION_REQUIRED"
+        HAS_CORRECT_CUDA=false
+    fi
+else
+    echo "📦 No CUDA toolkit found"
+    HAS_CORRECT_CUDA=false
+fi
+
+if [ "$HAS_CORRECT_CUDA" = "true" ]; then
+    echo "🔧 Installing development libraries only..."
+    # Install other dev libraries but skip CUDA toolkit
+    sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
+else
+    # Need to install CUDA - ensure package lists are updated
+    if [ "$APT_UPDATED" = "false" ]; then
+        echo "🔄 Updating package lists before CUDA installation..."
+        sudo apt-get update
+        APT_UPDATED=true
+    fi
+    
+    echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED and development libraries..."
+    # Install all packages including CUDA toolkit (this is the big download)
+    sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
+fi
 
 # Verify clang installation
 echo "Verifying clang installation..."
