@@ -194,7 +194,7 @@ echo "Using cuDNN version: $CUDNN_VERSION"
 
 # Install cuDNN using PyTorch's script
 echo "Installing cuDNN using PyTorch's script..."
-curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cudnn.sh | bash
+curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cudnn.sh | sudo bash
 
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."
