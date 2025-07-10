@@ -54,10 +54,12 @@ jobs:
               uses: actions/cache@v3
               with:
                   path: |
-                      ~/.triton
                       /tmp/triton
-                  key: ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}
+                      /tmp/triton-cache
+                      /opt/miniconda3/envs/tritonparse/lib/python3.11/site-packages/triton*
+                  key: ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-main
                   restore-keys: |
+                      ${{ runner.os }}-triton-${{ hashFiles('.ci/install-triton.sh') }}-
                       ${{ runner.os }}-triton-
 
             - name: Setup environment

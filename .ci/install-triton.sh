@@ -7,6 +7,11 @@ set -e
 
 echo "Installing Triton from source..."
 
+# Set Triton version/commit for cache consistency
+TRITON_COMMIT=${TRITON_COMMIT:-"main"}
+TRITON_CACHE_DIR="/tmp/triton-cache"
+TRITON_SOURCE_DIR="/tmp/triton"
+
 # Ensure we're in the conda environment
 if [ -z "$CONDA_ENV" ]; then
     echo "ERROR: CONDA_ENV is not set"
@@ -38,14 +43,28 @@ if [ -n "$TRITON_PKG_DIR" ] && [ -d "$TRITON_PKG_DIR" ]; then
     rm -rf "$TRITON_PKG_DIR"
 fi
 
-# Clone Triton repository
-echo "Cloning Triton repository..."
-cd /tmp
-if [ -d "triton" ]; then
-    rm -rf triton
+# Create cache directory
+mkdir -p "$TRITON_CACHE_DIR"
+
+# Clone or update Triton repository
+echo "Setting up Triton repository..."
+if [ -d "$TRITON_SOURCE_DIR" ]; then
+    echo "Using cached Triton source..."
+    cd "$TRITON_SOURCE_DIR"
+    # Reset to clean state and fetch latest
+    git reset --hard HEAD
+    git clean -fd
+    git fetch origin
+else
+    echo "Cloning Triton repository..."
+    git clone https://github.com/triton-lang/triton.git "$TRITON_SOURCE_DIR"
+    cd "$TRITON_SOURCE_DIR"
 fi
-git clone https://github.com/triton-lang/triton.git
-cd triton
+
+# Checkout specific commit for reproducibility
+git checkout "$TRITON_COMMIT"
+ACTUAL_COMMIT=$(git rev-parse HEAD)
+echo "Using Triton commit: $ACTUAL_COMMIT"
 
 # Install build dependencies
 echo "Installing build dependencies..."
@@ -78,5 +97,8 @@ python -c "import triton; print(f'Triton version: {triton.__version__}')" || {
     exit 1
 }
 python -c "import triton; print(f'Triton path: {triton.__file__}')"
+
+# Save commit info for cache validation
+echo "$ACTUAL_COMMIT" > "$TRITON_CACHE_DIR/commit"
 
 echo "Triton installation completed successfully!"
