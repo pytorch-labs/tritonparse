@@ -33,9 +33,33 @@ on:
                 type: boolean
 
 jobs:
+    format-check:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python 3.11
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.11"
+
+            - name: Install development dependencies
+              run: |
+                  make install-dev
+
+            - name: Check code formatting
+              run: |
+                  make format-check
+
+            - name: Check linting
+              run: |
+                  make lint-check || (echo "❌ Linting failed. Please run 'make format' to fix formatting issues, then commit the changes." && exit 1)
+
     test:
         runs-on: 4-core-ubuntu-gpu-t4
         timeout-minutes: 120
+        needs: format-check
         steps:
             - uses: actions/checkout@v4
 

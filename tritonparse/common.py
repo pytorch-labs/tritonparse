@@ -173,9 +173,9 @@ def print_parsed_files_summary(parsed_log_dir: str) -> None:
                 if size_bytes < 1024:
                     file_size = f"{size_bytes}B"
                 elif size_bytes < 1024 * 1024:
-                    file_size = f"{size_bytes/1024:.1f}KB"
+                    file_size = f"{size_bytes / 1024:.1f}KB"
                 else:
-                    file_size = f"{size_bytes/(1024*1024):.1f}MB"
+                    file_size = f"{size_bytes / (1024 * 1024):.1f}MB"
             except OSError:
                 pass
 
