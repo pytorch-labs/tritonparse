@@ -68,17 +68,6 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-pip-3.11-
 
-            - name: Cache APT packages
-              uses: actions/cache@v3
-              with:
-                  path: |
-                      /var/cache/apt/archives
-                      /var/lib/apt/lists
-                  key: ${{ runner.os }}-apt-${{ hashFiles('.ci/setup.sh') }}-${{ steps.weekly-cache.outputs.week }}
-                  restore-keys: |
-                      ${{ runner.os }}-apt-${{ hashFiles('.ci/setup.sh') }}-
-                      ${{ runner.os }}-apt-
-
             - name: Get Triton latest commit
               id: triton-commit
               run: |
