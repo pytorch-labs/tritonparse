@@ -5,7 +5,7 @@
 
 **A comprehensive visualization and analysis tool for Triton IR files** — helping developers analyze, debug, and understand Triton kernel compilation processes.
 
-🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/)**
+🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.io%2Ftritonparse%2Ff0_fc0_a0_cai-.ndjson)**
 
 ## ✨ Key Features
 
