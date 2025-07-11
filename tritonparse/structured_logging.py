@@ -371,18 +371,16 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                 # Check file size before reading to avoid memory issues
                 file_size = os.path.getsize(file_path)
                 if file_size > MAX_FILE_SIZE:
-                    trace_data["file_content"][
-                        ir_filename
-                    ] = f"<file too large: {file_size} bytes>"
+                    message = f"<file too large: {file_size} bytes>"
+                    trace_data["file_content"][ir_filename] = message
                     continue
 
                 with open(file_path, "r") as f:
                     trace_data["file_content"][ir_filename] = f.read()
             except (UnicodeDecodeError, OSError) as e:
                 # add more specific error type
-                trace_data["file_content"][
-                    ir_filename
-                ] = f"<error reading file: {str(e)}>"
+                message = f"<error reading file: {str(e)}>"
+                trace_data["file_content"][ir_filename] = message
                 log.debug(f"Error reading file {file_path}: {e}")
 
 
