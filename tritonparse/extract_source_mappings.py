@@ -40,12 +40,16 @@ DIRECT_FILE_PATTERN = re.compile(r'.*loc\("([^"]+)":(\d+):(\d+)\)')
 
 # the definition of the PTX loc directive.
 # Example: .loc 1 0 50 // abcdef.py:0:50
-PTX_LOC_PATTERN = re.compile(r"^\s*\.loc\s+\d+\s+(\d+)\s+(\d+)\s+//\s*(.+?):(\d+):(\d+)")
+PTX_LOC_PATTERN = re.compile(
+    r"^\s*\.loc\s+\d+\s+(\d+)\s+(\d+)\s+//\s*(.+?):(\d+):(\d+)"
+)
 
 # the definition of the AMDGCN loc directive.
 # Example: .loc	1 32 30                         ; abcd.py:32:30
 # .loc	1 32 46 is_stmt 0               ; abcd.py:32:46
-AMDGCN_LOC_PATTERN = re.compile(r".*loc\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+[^;]*)?;\s*(.+?):(\d+):(\d+)")
+AMDGCN_LOC_PATTERN = re.compile(
+    r".*loc\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+[^;]*)?;\s*(.+?):(\d+):(\d+)"
+)
 
 
 def get_file_extension(filename: str) -> str:
@@ -253,7 +257,9 @@ def extract_ptx_amdgcn_mappings(
     def get_file_path(filename: str) -> str:
         file_path = filename
         if not os.path.isabs(filename):
-            logger.debug(f"Filename '{filename}' does not contain a path. Attempting to resolve.")
+            logger.debug(
+                f"Filename '{filename}' does not contain a path. Attempting to resolve."
+            )
             # Attempt to resolve the filename to a full path using referenced_files
             if filename in referenced_files:
                 if len(referenced_files[filename]) > 1:
@@ -482,7 +488,9 @@ def parse_single_trace_content(trace_content: str) -> str:
                 create_bidirectional_mapping(
                     ir_maps[src_type], ir_maps[tgt_type], src_type, tgt_type
                 )
-                logger.debug(f"Created bidirectional mapping between {src_type} and {tgt_type}")
+                logger.debug(
+                    f"Created bidirectional mapping between {src_type} and {tgt_type}"
+                )
 
     py_map = {}
 
@@ -594,7 +602,9 @@ def parse_single_file(
                 if frame_id is not None or frame_compile_id is not None:
                     output_file_name = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{compiled_autograd_id}.ndjson"
                 else:
-                    logger.debug("No frame_id or frame_compile_id found in the payload.")
+                    logger.debug(
+                        "No frame_id or frame_compile_id found in the payload."
+                    )
                     output_file_name = f"{file_name_without_extension}_mapped.ndjson"
             else:
                 output_file_name = f"{file_name_without_extension}_mapped.ndjson"

@@ -98,7 +98,9 @@ def parse_line_ranges(lines_arg: str) -> set[int]:
     return line_numbers
 
 
-def load_ndjson(file_path: Path, save_irs: bool = False, line_filter: set[int] = None) -> List[Any]:
+def load_ndjson(
+    file_path: Path, save_irs: bool = False, line_filter: set[int] = None
+) -> List[Any]:
     """
     Load NDJSON file and return list of JSON objects.
 
@@ -155,13 +157,17 @@ def load_ndjson(file_path: Path, save_irs: bool = False, line_filter: set[int] =
                                     )  # Create a copy to avoid modifying original
                                     for field in fields_to_remove:
                                         del payload[field]
-                                    json_obj = json_obj.copy()  # Create a copy of the main object
+                                    json_obj = (
+                                        json_obj.copy()
+                                    )  # Create a copy of the main object
                                     json_obj["payload"] = payload
                                     filtered_compilation_events += 1
 
                     json_objects.append(json_obj)
                 except json.JSONDecodeError as e:
-                    print(f"Error parsing JSON on line {line_num}: {e}", file=sys.stderr)
+                    print(
+                        f"Error parsing JSON on line {line_num}: {e}", file=sys.stderr
+                    )
                     print(f"Problematic line: {line[:100]}...", file=sys.stderr)
                     raise
 
@@ -224,7 +230,9 @@ Examples:
         """,
     )
 
-    parser.add_argument("ndjson_file", type=str, help="Path to the NDJSON file to convert")
+    parser.add_argument(
+        "ndjson_file", type=str, help="Path to the NDJSON file to convert"
+    )
 
     parser.add_argument(
         "--save-irs",
@@ -274,7 +282,9 @@ Examples:
         if args.lines:
             try:
                 line_filter = parse_line_ranges(args.lines)
-                print(f"Line filtering enabled: will process {len(line_filter)} specified lines")
+                print(
+                    f"Line filtering enabled: will process {len(line_filter)} specified lines"
+                )
             except ValueError as e:
                 print(f"Error parsing --lines argument: {e}", file=sys.stderr)
                 sys.exit(1)
@@ -285,7 +295,9 @@ Examples:
             print(
                 "Filtering out file_content and python_source from compilation events to reduce size"
             )
-        json_objects = load_ndjson(input_path, save_irs=args.save_irs, line_filter=line_filter)
+        json_objects = load_ndjson(
+            input_path, save_irs=args.save_irs, line_filter=line_filter
+        )
         print(f"Loaded {len(json_objects)} JSON objects")
 
         # Save as prettified JSON
