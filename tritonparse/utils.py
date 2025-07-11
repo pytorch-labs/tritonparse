@@ -84,9 +84,7 @@ def oss_run(
         out_dir = Path(out)
         if out_dir.exists():
             if not overwrite:
-                raise RuntimeError(
-                    f"{out_dir} already exists, pass --overwrite to overwrite"
-                )
+                raise RuntimeError(f"{out_dir} already exists, pass --overwrite to overwrite")
             shutil.rmtree(out_dir)
         os.makedirs(out_dir, exist_ok=True)
 

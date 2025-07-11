@@ -211,18 +211,14 @@ class TestTritonparseCUDA(unittest.TestCase):
         torch.cuda.synchronize()
 
         # Check that temp_dir_logs folder has content
-        assert os.path.exists(
-            temp_dir_logs
-        ), f"Log directory {temp_dir_logs} does not exist."
+        assert os.path.exists(temp_dir_logs), f"Log directory {temp_dir_logs} does not exist."
         log_files = os.listdir(temp_dir_logs)
         assert (
             len(log_files) > 0
         ), f"No log files found in {temp_dir_logs}. Expected log files to be generated during Triton compilation."
         print(f"Found {len(log_files)} log files in {temp_dir_logs}: {log_files}")
 
-        tritonparse.utils.unified_parse(
-            source=temp_dir_logs, out=temp_dir_parsed, overwrite=True
-        )
+        tritonparse.utils.unified_parse(source=temp_dir_logs, out=temp_dir_parsed, overwrite=True)
 
         # Clean up temporary directory
         try:

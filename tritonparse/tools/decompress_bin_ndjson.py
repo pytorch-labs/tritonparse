@@ -62,9 +62,7 @@ def decompress_bin_ndjson(input_file: str, output_file: str = None) -> None:
         # Get file sizes for comparison
         input_size = input_path.stat().st_size
         output_size = output_path.stat().st_size
-        compression_ratio = (
-            (1 - input_size / output_size) * 100 if output_size > 0 else 0
-        )
+        compression_ratio = (1 - input_size / output_size) * 100 if output_size > 0 else 0
 
         print(f"Successfully decompressed '{input_file}' to '{output_file}'")
         print(f"  Input size:  {input_size:,} bytes")
@@ -100,9 +98,7 @@ Examples:
         help="Output .ndjson file path (default: replace .bin.ndjson with .ndjson)",
     )
 
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose output"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
 
     args = parser.parse_args()
 

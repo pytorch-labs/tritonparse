@@ -247,9 +247,7 @@ def copy_local_to_tmpdir(local_path: str, verbose: bool = False) -> str:
 
     for item in os.listdir(local_path):
         item_path = os.path.join(local_path, item)
-        if os.path.isfile(item_path) and os.path.basename(item_path).startswith(
-            LOG_PREFIX
-        ):
+        if os.path.isfile(item_path) and os.path.basename(item_path).startswith(LOG_PREFIX):
             if verbose:
                 logger.info(f"Copying {item_path} to {temp_dir}")
             shutil.copy2(item_path, temp_dir)
@@ -309,9 +307,7 @@ def parse_logs(
     for rank, files in ranks.items():
         use_filenames = False
         if len(files) > 1:
-            logger.warning(
-                "Warning: multiple logs found for the same rank. Using filenames."
-            )
+            logger.warning("Warning: multiple logs found for the same rank. Using filenames.")
             use_filenames = True
         # Determine rank key for file mapping
         rank_key = "rank_default" if rank.is_default else f"rank_{rank.value}"
@@ -350,9 +346,7 @@ def parse_logs(
                 # Add files to the mapping (now with .gz extensions)
                 file_mapping[rank_key]["regular_files"].extend(generated_files)
                 # this is used to generate the tritonparse url
-                file_mapping[rank_key]["rank_suffix"] = rank_config.to_rank().to_string(
-                    suffix="/"
-                )
+                file_mapping[rank_key]["rank_suffix"] = rank_config.to_rank().to_string(suffix="/")
                 if mapped_file:
                     file_mapping[rank_key]["mapped_file"] = mapped_file
 

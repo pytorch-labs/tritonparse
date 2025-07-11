@@ -173,9 +173,7 @@ def convert(obj):
         return str(obj)
 
     if is_dataclass(obj):
-        return convert(
-            asdict(obj)
-        )  # Convert dataclass to dict and then process that dict
+        return convert(asdict(obj))  # Convert dataclass to dict and then process that dict
     log.warning(f"Unknown type: {type(obj)}")
     return str(obj)  # Return primitive types as-is
 
@@ -193,8 +191,7 @@ def maybe_enable_debug_logging():
 
         # Check if we already have a debug handler
         has_debug_handler = any(
-            isinstance(handler, logging.StreamHandler)
-            and handler.level <= logging.DEBUG
+            isinstance(handler, logging.StreamHandler) and handler.level <= logging.DEBUG
             for handler in log.handlers
         )
 
@@ -276,11 +273,7 @@ def extract_kernel_name(src) -> Optional[str]:
             return src.getattr("name", None)
         else:
             # For ASTSource, get the function name
-            if (
-                hasattr(src, "fn")
-                and hasattr(src.fn, "fn")
-                and hasattr(src.fn.fn, "__name__")
-            ):
+            if hasattr(src, "fn") and hasattr(src.fn, "fn") and hasattr(src.fn.fn, "__name__"):
                 return src.fn.fn.__name__
             return None
     except Exception as e:
@@ -316,9 +309,7 @@ def should_trace_kernel(
             log.debug(f"Kernel '{kernel_name}' matches pattern '{pattern}', will trace")
             return True
 
-    log.debug(
-        f"Kernel '{kernel_name}' does not match any allowlist pattern, skipping trace"
-    )
+    log.debug(f"Kernel '{kernel_name}' does not match any allowlist pattern, skipping trace")
     return False
 
 
@@ -371,18 +362,14 @@ def extract_file_content(trace_data: Dict[str, Any], metadata_group: Dict[str, s
                 # Check file size before reading to avoid memory issues
                 file_size = os.path.getsize(file_path)
                 if file_size > MAX_FILE_SIZE:
-                    trace_data["file_content"][
-                        ir_filename
-                    ] = f"<file too large: {file_size} bytes>"
+                    trace_data["file_content"][ir_filename] = f"<file too large: {file_size} bytes>"
                     continue
 
                 with open(file_path, "r") as f:
                     trace_data["file_content"][ir_filename] = f.read()
             except (UnicodeDecodeError, OSError) as e:
                 # add more specific error type
-                trace_data["file_content"][
-                    ir_filename
-                ] = f"<error reading file: {str(e)}>"
+                trace_data["file_content"][ir_filename] = f"<error reading file: {str(e)}>"
                 log.debug(f"Error reading file {file_path}: {e}")
 
 
@@ -439,9 +426,7 @@ class TritonTraceHandler(logging.StreamHandler):
     it automatically adds rank information to filenames.
     """
 
-    def __init__(
-        self, root_dir: Optional[str] = None, prefix=DEFAULT_TRACE_FILE_PREFIX
-    ):
+    def __init__(self, root_dir: Optional[str] = None, prefix=DEFAULT_TRACE_FILE_PREFIX):
         logging.Handler.__init__(self)
         self.root_dir = root_dir
         self.prefix = prefix
@@ -462,13 +447,8 @@ class TritonTraceHandler(logging.StreamHandler):
         if TORCH_INSTALLED:
             import torch.version as torch_version
 
-            if (
-                hasattr(torch_version, "git_version")
-                and os.getenv("MAST_HPC_JOB_NAME") is None
-            ):
-                log.info(
-                    "TritonTraceHandler: disabled because not fbcode or conda on mast"
-                )
+            if hasattr(torch_version, "git_version") and os.getenv("MAST_HPC_JOB_NAME") is None:
+                log.info("TritonTraceHandler: disabled because not fbcode or conda on mast")
                 should_set_root_dir = False
             # TODO: change to tritonparse knob
             elif not torch._utils_internal.justknobs_check("pytorch/trace:enable"):
@@ -711,9 +691,7 @@ def maybe_trace_triton(
     # Add cache_hit to metadata
     trace_data["metadata"]["cache_hit"] = cache_hit
     if not metadata:
-        metadata_path = next(
-            (Path(p) for c, p in metadata_group.items() if c.endswith(".json"))
-        )
+        metadata_path = next((Path(p) for c, p in metadata_group.items() if c.endswith(".json")))
         with open(metadata_path, "r") as f:
             metadata = json.load(f)
             trace_data["metadata"].update(metadata)
@@ -919,9 +897,7 @@ class LaunchHookImpl(LaunchHook):
         trace_data["name"] = metadata_dict["name"]
         trace_data["function"] = metadata_dict["function"]
         trace_data["stream"] = metadata_dict["stream"]
-        launch_metadata_tritonparse = metadata_dict.get(
-            "launch_metadata_tritonparse", None
-        )
+        launch_metadata_tritonparse = metadata_dict.get("launch_metadata_tritonparse", None)
         if launch_metadata_tritonparse is not None:
             trace_data["grid"] = launch_metadata_tritonparse[0]
             trace_data["metadata"] = launch_metadata_tritonparse[1]
@@ -967,9 +943,7 @@ def init_basic(trace_folder: Optional[str] = None):
     # Parse and store kernel allowlist configuration
     _KERNEL_ALLOWLIST_PATTERNS = parse_kernel_allowlist()
     if _KERNEL_ALLOWLIST_PATTERNS:
-        log.debug(
-            f"Kernel allowlist enabled with patterns: {_KERNEL_ALLOWLIST_PATTERNS}"
-        )
+        log.debug(f"Kernel allowlist enabled with patterns: {_KERNEL_ALLOWLIST_PATTERNS}")
     else:
         log.debug("Kernel allowlist not set, tracing all kernels")
 

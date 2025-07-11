@@ -51,6 +51,4 @@ class Source:
         elif path.is_file():
             return SourceType.LOCAL_FILE, str(path.absolute())
         else:
-            raise ValueError(
-                f"Source '{self.source_str}' is not a valid directory or file"
-            )
+            raise ValueError(f"Source '{self.source_str}' is not a valid directory or file")
