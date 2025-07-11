@@ -18,16 +18,6 @@ echo "CUDA_VERSION: $CUDA_VERSION"
 # Install system dependencies
 echo "Installing system dependencies..."
 
-# Check if we have cached APT lists (indicates cache hit)
-HAS_APT_CACHE=false
-if [ -f "/var/lib/apt/lists/lock" ] || [ "$(ls -A /var/lib/apt/lists/ 2>/dev/null | wc -l)" -gt 5 ]; then
-    echo "✅ Detected cached APT package lists"
-    HAS_APT_CACHE=true
-else
-    echo "📦 No APT cache found"
-    HAS_APT_CACHE=false
-fi
-
 # Set up LLVM 17 APT source with modern GPG key handling
 echo "Setting up LLVM 17 APT source..."
 NEED_SOURCE_UPDATE=false
@@ -53,20 +43,13 @@ else
     echo "✅ LLVM APT source already configured"
 fi
 
-# Smart APT update strategy
-APT_UPDATED=false
-if [ "$HAS_APT_CACHE" = "true" ] && [ "$NEED_SOURCE_UPDATE" = "false" ]; then
-    echo "🚀 Using cached package lists, skipping initial update"
-    APT_UPDATED=false
-elif [ "$NEED_SOURCE_UPDATE" = "true" ]; then
+# Update package lists
+if [ "$NEED_SOURCE_UPDATE" = "true" ]; then
     echo "🔄 Updating package lists (new source added)..."
-    sudo apt-get update
-    APT_UPDATED=true
 else
-    echo "🔄 Updating package lists (no cache available)..."
-    sudo apt-get update
-    APT_UPDATED=true
+    echo "🔄 Updating package lists..."
 fi
+sudo apt-get update
 
 # Install clang and clangd first
 echo "Installing clang and clangd..."
@@ -109,13 +92,6 @@ if [ "$HAS_CORRECT_CUDA" = "true" ]; then
     # Install other dev libraries but skip CUDA toolkit
     sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
 else
-    # Need to install CUDA - ensure package lists are updated
-    if [ "$APT_UPDATED" = "false" ]; then
-        echo "🔄 Updating package lists before CUDA installation..."
-        sudo apt-get update
-        APT_UPDATED=true
-    fi
-
     echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED and development libraries..."
     # Install all packages including CUDA toolkit (this is the big download)
     sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
