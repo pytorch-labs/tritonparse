@@ -6,6 +6,7 @@ TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python -m unittest tests.test
 ```
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -201,13 +202,14 @@ class TestTritonparseCUDA(unittest.TestCase):
         temp_dir_parsed = os.path.join(temp_dir, "parsed_output")
         os.makedirs(temp_dir_parsed, exist_ok=True)
 
-        tritonparse.structured_logging.init(temp_dir_logs)
+        tritonparse.structured_logging.init(temp_dir_logs, enable_trace_launch=True)
 
         # Generate some triton compilation activity to create log files
         torch.manual_seed(0)
         size = (512, 512)  # Smaller size for faster testing
         x = torch.randn(size, device=self.cuda_device, dtype=torch.float32)
         run_test_kernel(x)  # Run the simple kernel
+        run_test_kernel(x)  # Run the simple kernel again
         torch.cuda.synchronize()
 
         # Check that temp_dir_logs folder has content
@@ -219,6 +221,57 @@ class TestTritonparseCUDA(unittest.TestCase):
             len(log_files) > 0
         ), f"No log files found in {temp_dir_logs}. Expected log files to be generated during Triton compilation."
         print(f"Found {len(log_files)} log files in {temp_dir_logs}: {log_files}")
+
+        # Check that log files contain specific counts of 'launch' and 'compilation' event types
+        def check_event_type_counts_in_logs(log_dir):
+            """Check that log files contain exactly 1 'compilation' and 1 'launch' event types"""
+            event_type_counts = {"compilation": 0, "launch": 0}
+
+            for log_file in os.listdir(log_dir):
+                if log_file.endswith(".ndjson"):
+                    log_file_path = os.path.join(log_dir, log_file)
+                    print(f"Checking event types in: {log_file}")
+
+                    with open(log_file_path, "r") as f:
+                        for line_num, line in enumerate(f, 1):
+                            try:
+                                # Parse each line as JSON
+                                event_data = json.loads(line.strip())
+
+                                # Extract event_type if present
+                                if "event_type" in event_data:
+                                    event_type = event_data["event_type"]
+                                    if event_type in event_type_counts:
+                                        event_type_counts[event_type] += 1
+                                        print(
+                                            f"  Line {line_num}: event_type = '{event_type}' (count: {event_type_counts[event_type]})"
+                                        )
+                                    else:
+                                        print(
+                                            f"  Line {line_num}: event_type = '{event_type}' (not tracked)"
+                                        )
+
+                            except json.JSONDecodeError as e:
+                                print(f"  Line {line_num}: JSON decode error - {e}")
+                                continue
+                            except Exception as e:
+                                print(f"  Line {line_num}: Unexpected error - {e}")
+                                continue
+
+            print(f"Event type counts: {event_type_counts}")
+            return event_type_counts
+
+        # Check event type counts in log files
+        event_counts = check_event_type_counts_in_logs(temp_dir_logs)
+
+        # Assert specific counts for 'launch' and 'compilation' event types
+        assert (
+            event_counts["compilation"] == 1
+        ), f"Expected 1 'compilation' event, found {event_counts['compilation']}"
+        assert (
+            event_counts["launch"] == 2
+        ), f"Expected 2 'launch' events, found {event_counts['launch']}"
+        print("✓ Verified correct event type counts: 1 compilation, 2 launch")
 
         tritonparse.utils.unified_parse(
             source=temp_dir_logs, out=temp_dir_parsed, overwrite=True

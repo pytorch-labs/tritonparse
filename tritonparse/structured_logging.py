@@ -981,13 +981,16 @@ def init_basic(trace_folder: Optional[str] = None):
     maybe_enable_trace_launch()
 
 
-def init(trace_folder: Optional[str] = None):
+def init(trace_folder: Optional[str] = None, enable_trace_launch: bool = False):
     """
     This function is a wrapper around init_basic() that also setup the compilation listener.
 
     Args:
         trace_folder (Optional[str]): The folder to store the trace files.
     """
+    global TRITON_TRACE_LAUNCH
+    if enable_trace_launch:
+        TRITON_TRACE_LAUNCH = True
     import triton
 
     init_basic(trace_folder)
