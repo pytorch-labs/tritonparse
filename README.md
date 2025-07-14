@@ -55,7 +55,7 @@ INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/t
 
 ### 2. Visualize Results
 
-**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/)** and open your local trace files (.ndjson.gz format).
+**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.io%2Ftritonparse%2Ff0_fc0_a0_cai-.ndjson)** and open your local trace files (.ndjson.gz format).
 
 > **🔒 Privacy Note**: Your trace files are processed entirely in your browser - nothing is uploaded to any server! 
 
