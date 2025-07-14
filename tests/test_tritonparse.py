@@ -167,6 +167,7 @@ class TestTritonparseCUDA(unittest.TestCase):
 
     def _create_test_kernel(self):
         """Create a simple test kernel for compilation testing"""
+
         @triton.jit
         def test_kernel(x_ptr, y_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
             pid = tl.program_id(axis=0)
@@ -177,7 +178,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             x = tl.load(x_ptr + offsets, mask=mask)
             y = x + 1.0  # Simple operation: add 1
             tl.store(y_ptr + offsets, y, mask=mask)
-        
+
         return test_kernel
 
     def _run_kernel(self, kernel, x):
@@ -194,10 +195,10 @@ class TestTritonparseCUDA(unittest.TestCase):
         temp_dir = tempfile.mkdtemp()
         temp_dir_logs = os.path.join(temp_dir, "logs")
         temp_dir_parsed = os.path.join(temp_dir, "parsed_output")
-        
+
         os.makedirs(temp_dir_logs, exist_ok=True)
         os.makedirs(temp_dir_parsed, exist_ok=True)
-        
+
         return temp_dir, temp_dir_logs, temp_dir_parsed
 
     def _generate_test_data(self):
@@ -209,7 +210,7 @@ class TestTritonparseCUDA(unittest.TestCase):
     def _verify_log_directory(self, log_dir):
         """Verify that log directory exists and contains files"""
         assert os.path.exists(log_dir), f"Log directory {log_dir} does not exist."
-        
+
         log_files = os.listdir(log_dir)
         assert len(log_files) > 0, (
             f"No log files found in {log_dir}. "
@@ -223,19 +224,19 @@ class TestTritonparseCUDA(unittest.TestCase):
         # Set up test environment
         temp_dir, temp_dir_logs, temp_dir_parsed = self._setup_test_directories()
         print(f"Temporary directory: {temp_dir}")
-        
+
         # Initialize logging
         tritonparse.structured_logging.init(temp_dir_logs, enable_trace_launch=True)
-        
+
         # Generate test data and run kernels
         test_kernel = self._create_test_kernel()
         x = self._generate_test_data()
-        
+
         # Run kernel twice to generate compilation and launch events
         self._run_kernel(test_kernel, x)
         self._run_kernel(test_kernel, x)
         torch.cuda.synchronize()
-        
+
         # Verify log directory
         self._verify_log_directory(temp_dir_logs)
 
@@ -247,25 +248,31 @@ class TestTritonparseCUDA(unittest.TestCase):
                 print(f"  Line {line_num}: JSON decode error - {e}")
                 return None
 
-        def process_event_data(event_data: dict, line_num: int, event_counts: dict) -> None:
+        def process_event_data(
+            event_data: dict, line_num: int, event_counts: dict
+        ) -> None:
             """Process event data and update counts"""
             try:
                 event_type = event_data.get("event_type")
                 if event_type is None:
                     return
-                
+
                 if event_type in event_counts:
                     event_counts[event_type] += 1
-                    print(f"  Line {line_num}: event_type = '{event_type}' (count: {event_counts[event_type]})")
+                    print(
+                        f"  Line {line_num}: event_type = '{event_type}' (count: {event_counts[event_type]})"
+                    )
                 else:
-                    print(f"  Line {line_num}: event_type = '{event_type}' (not tracked)")
+                    print(
+                        f"  Line {line_num}: event_type = '{event_type}' (not tracked)"
+                    )
             except (KeyError, TypeError) as e:
                 print(f"  Line {line_num}: Data structure error - {e}")
 
         def count_events_in_file(file_path: str, event_counts: dict) -> None:
             """Count events in a single log file"""
             print(f"Checking event types in: {os.path.basename(file_path)}")
-            
+
             with open(file_path, "r") as f:
                 for line_num, line in enumerate(f, 1):
                     event_data = parse_log_line(line, line_num)
@@ -275,38 +282,38 @@ class TestTritonparseCUDA(unittest.TestCase):
         def check_event_type_counts_in_logs(log_dir: str) -> dict:
             """Count 'launch' and 'compilation' events in all log files"""
             event_counts = {"compilation": 0, "launch": 0}
-            
+
             for log_file in os.listdir(log_dir):
                 if log_file.endswith(".ndjson"):
                     log_file_path = os.path.join(log_dir, log_file)
                     count_events_in_file(log_file_path, event_counts)
-            
+
             print(f"Event type counts: {event_counts}")
             return event_counts
 
         # Verify event counts
         event_counts = check_event_type_counts_in_logs(temp_dir_logs)
         self._verify_event_counts(event_counts)
-        
+
         # Test parsing functionality
         tritonparse.utils.unified_parse(
             source=temp_dir_logs, out=temp_dir_parsed, overwrite=True
         )
-        
+
         # Verify parsing output
         self._verify_parsing_output(temp_dir_parsed)
-        
+
         # Clean up
         shutil.rmtree(temp_dir)
 
     def _verify_event_counts(self, event_counts):
         """Verify that event counts match expected values"""
-        assert event_counts["compilation"] == 1, (
-            f"Expected 1 'compilation' event, found {event_counts['compilation']}"
-        )
-        assert event_counts["launch"] == 2, (
-            f"Expected 2 'launch' events, found {event_counts['launch']}"
-        )
+        assert (
+            event_counts["compilation"] == 1
+        ), f"Expected 1 'compilation' event, found {event_counts['compilation']}"
+        assert (
+            event_counts["launch"] == 2
+        ), f"Expected 2 'launch' events, found {event_counts['launch']}"
         print("✓ Verified correct event type counts: 1 compilation, 2 launch")
 
     def _verify_parsing_output(self, parsed_dir):
