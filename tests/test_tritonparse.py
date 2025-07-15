@@ -165,9 +165,11 @@ class TestTritonparseCUDA(unittest.TestCase):
         assert "python_source" in trace_data
         assert "file_path" in trace_data["python_source"]
 
-    def _create_test_kernel(self):
-        """Create a simple test kernel for compilation testing"""
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+    def test_whole_workflow(self):
+        """Test unified_parse functionality"""
 
+        # Define a simple kernel directly in the test function
         @triton.jit
         def test_kernel(x_ptr, y_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
             pid = tl.program_id(axis=0)
@@ -179,66 +181,46 @@ class TestTritonparseCUDA(unittest.TestCase):
             y = x + 1.0  # Simple operation: add 1
             tl.store(y_ptr + offsets, y, mask=mask)
 
-        return test_kernel
+        # Simple function to run the kernel
+        def run_test_kernel(x):
+            n_elements = x.numel()
+            y = torch.empty_like(x)
+            BLOCK_SIZE = 256
+            grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
+            test_kernel[grid](x, y, n_elements, BLOCK_SIZE)
+            return y
 
-    def _run_kernel(self, kernel, x):
-        """Run a kernel with given input tensor"""
-        n_elements = x.numel()
-        y = torch.empty_like(x)
-        BLOCK_SIZE = 256
-        grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
-        kernel[grid](x, y, n_elements, BLOCK_SIZE)
-        return y
-
-    def _setup_test_directories(self):
-        """Set up temporary directories for testing"""
+        # Set up test environment
         temp_dir = tempfile.mkdtemp()
         temp_dir_logs = os.path.join(temp_dir, "logs")
         temp_dir_parsed = os.path.join(temp_dir, "parsed_output")
-
         os.makedirs(temp_dir_logs, exist_ok=True)
         os.makedirs(temp_dir_parsed, exist_ok=True)
-
-        return temp_dir, temp_dir_logs, temp_dir_parsed
-
-    def _generate_test_data(self):
-        """Generate test tensor data"""
-        torch.manual_seed(0)
-        size = (512, 512)  # Smaller size for faster testing
-        return torch.randn(size, device=self.cuda_device, dtype=torch.float32)
-
-    def _verify_log_directory(self, log_dir):
-        """Verify that log directory exists and contains files"""
-        assert os.path.exists(log_dir), f"Log directory {log_dir} does not exist."
-
-        log_files = os.listdir(log_dir)
-        assert len(log_files) > 0, (
-            f"No log files found in {log_dir}. "
-            "Expected log files to be generated during Triton compilation."
-        )
-        print(f"Found {len(log_files)} log files in {log_dir}: {log_files}")
-
-    @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
-    def test_whole_workflow(self):
-        """Test unified_parse functionality"""
-        # Set up test environment
-        temp_dir, temp_dir_logs, temp_dir_parsed = self._setup_test_directories()
         print(f"Temporary directory: {temp_dir}")
 
         # Initialize logging
         tritonparse.structured_logging.init(temp_dir_logs, enable_trace_launch=True)
 
         # Generate test data and run kernels
-        test_kernel = self._create_test_kernel()
-        x = self._generate_test_data()
+        torch.manual_seed(0)
+        size = (512, 512)  # Smaller size for faster testing
+        x = torch.randn(size, device=self.cuda_device, dtype=torch.float32)
 
         # Run kernel twice to generate compilation and launch events
-        self._run_kernel(test_kernel, x)
-        self._run_kernel(test_kernel, x)
+        run_test_kernel(x)
+        run_test_kernel(x)
         torch.cuda.synchronize()
 
         # Verify log directory
-        self._verify_log_directory(temp_dir_logs)
+        assert os.path.exists(
+            temp_dir_logs
+        ), f"Log directory {temp_dir_logs} does not exist."
+        log_files = os.listdir(temp_dir_logs)
+        assert len(log_files) > 0, (
+            f"No log files found in {temp_dir_logs}. "
+            "Expected log files to be generated during Triton compilation."
+        )
+        print(f"Found {len(log_files)} log files in {temp_dir_logs}: {log_files}")
 
         def parse_log_line(line: str, line_num: int) -> dict | None:
             """Parse a single log line and extract event data"""
@@ -293,21 +275,6 @@ class TestTritonparseCUDA(unittest.TestCase):
 
         # Verify event counts
         event_counts = check_event_type_counts_in_logs(temp_dir_logs)
-        self._verify_event_counts(event_counts)
-
-        # Test parsing functionality
-        tritonparse.utils.unified_parse(
-            source=temp_dir_logs, out=temp_dir_parsed, overwrite=True
-        )
-
-        # Verify parsing output
-        self._verify_parsing_output(temp_dir_parsed)
-
-        # Clean up
-        shutil.rmtree(temp_dir)
-
-    def _verify_event_counts(self, event_counts):
-        """Verify that event counts match expected values"""
         assert (
             event_counts["compilation"] == 1
         ), f"Expected 1 'compilation' event, found {event_counts['compilation']}"
@@ -316,10 +283,17 @@ class TestTritonparseCUDA(unittest.TestCase):
         ), f"Expected 2 'launch' events, found {event_counts['launch']}"
         print("✓ Verified correct event type counts: 1 compilation, 2 launch")
 
-    def _verify_parsing_output(self, parsed_dir):
-        """Verify that parsing output directory contains files"""
-        parsed_files = os.listdir(parsed_dir)
+        # Test parsing functionality
+        tritonparse.utils.unified_parse(
+            source=temp_dir_logs, out=temp_dir_parsed, overwrite=True
+        )
+
+        # Verify parsing output
+        parsed_files = os.listdir(temp_dir_parsed)
         assert len(parsed_files) > 0, "No files found in parsed output directory"
+
+        # Clean up
+        shutil.rmtree(temp_dir)
 
 
 if __name__ == "__main__":
