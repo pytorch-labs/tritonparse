@@ -7,6 +7,8 @@ TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python tests/test_add.py
 ```
 """
 
+import os
+
 import torch
 import triton
 import triton.language as tl
@@ -15,7 +17,9 @@ import tritonparse.structured_logging
 import tritonparse.utils
 
 log_path = "./logs"
-tritonparse.structured_logging.init(log_path)
+tritonparse.structured_logging.init(log_path, enable_trace_launch=True)
+
+os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "0"
 
 
 @triton.jit
