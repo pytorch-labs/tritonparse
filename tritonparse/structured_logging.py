@@ -983,10 +983,11 @@ def init_basic(trace_folder: Optional[str] = None):
 
 def init(trace_folder: Optional[str] = None, enable_trace_launch: bool = False):
     """
-    This function is a wrapper around init_basic() that also setup the compilation listener.
+    This function is a wrapper around init_basic() that also sets up the compilation listener.
 
     Args:
         trace_folder (Optional[str]): The folder to store the trace files.
+        enable_trace_launch (bool): Whether to enable the trace launch hook.
     """
     global TRITON_TRACE_LAUNCH
     if enable_trace_launch:
