@@ -200,7 +200,7 @@ def gzip_single_file(file_path: str, verbose: bool = False) -> str:
 
     gz_file_path = file_path + ".gz"
     if verbose:
-        logger.info(f"Gzipping {file_path}")
+        logger.debug(f"Gzipping {file_path}")
 
     with open(file_path, "rb") as f_in:
         with gzip.open(gz_file_path, "wb") as f_out:
@@ -209,7 +209,7 @@ def gzip_single_file(file_path: str, verbose: bool = False) -> str:
     # Delete the original file after successful compression
     os.remove(file_path)
     if verbose:
-        logger.info(f"Deleted original file {file_path}")
+        logger.debug(f"Deleted original file {file_path}")
 
     return gz_file_path
 

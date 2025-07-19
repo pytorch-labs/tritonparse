@@ -449,80 +449,80 @@ def parse_single_trace_content(trace_content: str) -> str:
     """
 
     entry = json.loads(trace_content)
-    if entry.get("event_type") != "compilation" and "payload" in entry:
-        logger.warning("Not a compilation event. Skipping.")
-        return ""
-    payload = entry.setdefault("payload", {})
-    file_content = payload.get("file_content", {})
-    file_path = payload.get("file_path", {})
+    if entry.get("event_type") == "compilation":
+        payload = entry.setdefault("payload", {})
+        file_content = payload.get("file_content", {})
+        file_path = payload.get("file_path", {})
 
-    # Find the IR file keys
-    ttir_key = next((k for k in file_content if k.endswith(".ttir")), None)
-    ttgir_key = next((k for k in file_content if k.endswith(".ttgir")), None)
-    ptx_key = next((k for k in file_content if k.endswith(".ptx")), None)
-    amdgcn_key = next((k for k in file_content if k.endswith(".amdgcn")), None)
-    # Skip if no IR files found
-    if not (ttir_key or ttgir_key or ptx_key or amdgcn_key):
-        logger.warning("No IR files found in the payload.")
-        return trace_content
+        # Find the IR file keys
+        ttir_key = next((k for k in file_content if k.endswith(".ttir")), None)
+        ttgir_key = next((k for k in file_content if k.endswith(".ttgir")), None)
+        ptx_key = next((k for k in file_content if k.endswith(".ptx")), None)
+        amdgcn_key = next((k for k in file_content if k.endswith(".amdgcn")), None)
+        # Skip if no IR files found
+        if not (ttir_key or ttgir_key or ptx_key or amdgcn_key):
+            logger.warning("No IR files found in the payload.")
+            return trace_content
 
-    # generate ttir->source, ttgir->source, ptx->source
-    ttir_map = process_ir(ttir_key, file_content, file_path)
-    ttgir_map = process_ir(ttgir_key, file_content, file_path)
-    ptx_map = process_ir(ptx_key, file_content, file_path, [ttir_map, ttgir_map])
-    amdgcn_map = process_ir(amdgcn_key, file_content, file_path, [ttir_map, ttgir_map])
-
-    # Create bidirectional mappings between all IR types
-    ir_maps = {
-        "ttir": ttir_map,
-        "ttgir": ttgir_map,
-        "ptx": ptx_map,
-        "amdgcn": amdgcn_map,
-    }
-
-    # Create mappings between all pairs of IR types
-    ir_types = list(ir_maps.keys())
-    for i, src_type in enumerate(ir_types):
-        for tgt_type in ir_types[i + 1 :]:
-            if ir_maps[src_type] and ir_maps[tgt_type]:
-                create_bidirectional_mapping(
-                    ir_maps[src_type], ir_maps[tgt_type], src_type, tgt_type
-                )
-                logger.debug(
-                    f"Created bidirectional mapping between {src_type} and {tgt_type}"
-                )
-
-    py_map = {}
-
-    if "python_source" in payload:
-        logger.debug(
-            f"Added Python source information (lines {payload['python_source']['start_line']}-{payload['python_source']['end_line']})"
+        # generate ttir->source, ttgir->source, ptx->source
+        ttir_map = process_ir(ttir_key, file_content, file_path)
+        ttgir_map = process_ir(ttgir_key, file_content, file_path)
+        ptx_map = process_ir(ptx_key, file_content, file_path, [ttir_map, ttgir_map])
+        amdgcn_map = process_ir(
+            amdgcn_key, file_content, file_path, [ttir_map, ttgir_map]
         )
 
-        # 4. Create Python source to IR mappings. We use the original line numbers as key in the python source code.
-        # Create a list of valid IR mappings, filtering out None keys
-        ir_mappings = []
-        ir_keys_and_maps = [
-            (ttir_key, ttir_map),
-            (ttgir_key, ttgir_map),
-            (ptx_key, ptx_map),
-            (amdgcn_key, amdgcn_map),
-        ]
+        # Create bidirectional mappings between all IR types
+        ir_maps = {
+            "ttir": ttir_map,
+            "ttgir": ttgir_map,
+            "ptx": ptx_map,
+            "amdgcn": amdgcn_map,
+        }
 
-        for key, mapping in ir_keys_and_maps:
-            if key:
-                ir_mappings.append((get_file_extension(key), mapping))
+        # Create mappings between all pairs of IR types
+        ir_types = list(ir_maps.keys())
+        for i, src_type in enumerate(ir_types):
+            for tgt_type in ir_types[i + 1 :]:
+                if ir_maps[src_type] and ir_maps[tgt_type]:
+                    create_bidirectional_mapping(
+                        ir_maps[src_type], ir_maps[tgt_type], src_type, tgt_type
+                    )
+                    logger.debug(
+                        f"Created bidirectional mapping between {src_type} and {tgt_type}"
+                    )
 
-        py_map = create_python_mapping(ir_mappings)
+        py_map = {}
 
-    # Store the mappings in the payload
-    payload["source_mappings"] = {
-        "ttir": ttir_map,
-        "ttgir": ttgir_map,
-        **({"ptx": ptx_map} if ptx_map else {}),
-        **({"amdgcn": amdgcn_map} if amdgcn_map else {}),
-        "python": py_map,
-    }
+        if "python_source" in payload:
+            logger.debug(
+                f"Added Python source information (lines {payload['python_source']['start_line']}-{payload['python_source']['end_line']})"
+            )
+
+            # 4. Create Python source to IR mappings. We use the original line numbers as key in the python source code.
+            # Create a list of valid IR mappings, filtering out None keys
+            ir_mappings = []
+            ir_keys_and_maps = [
+                (ttir_key, ttir_map),
+                (ttgir_key, ttgir_map),
+                (ptx_key, ptx_map),
+                (amdgcn_key, amdgcn_map),
+            ]
+
+            for key, mapping in ir_keys_and_maps:
+                if key:
+                    ir_mappings.append((get_file_extension(key), mapping))
+
+            py_map = create_python_mapping(ir_mappings)
+
+        # Store the mappings in the payload
+        payload["source_mappings"] = {
+            "ttir": ttir_map,
+            "ttgir": ttgir_map,
+            **({"ptx": ptx_map} if ptx_map else {}),
+            **({"amdgcn": amdgcn_map} if amdgcn_map else {}),
+            "python": py_map,
+        }
     # NDJSON format requires a newline at the end of each line
     return json.dumps(entry, separators=(",", ":")) + "\n"
 
@@ -552,6 +552,9 @@ def parse_single_file(
         in NDJSON format (one JSON object per line).
     """
     outputs = defaultdict(list)
+    # Dictionary to track kernel hash to output file mapping
+    # Format: {hash: output_file_path}
+    kernel_hash_to_file = {}
 
     # Set default output directory if not provided
     output_dir = output_dir or os.path.dirname(file_path)
@@ -588,29 +591,72 @@ def parse_single_file(
                 continue
 
             parsed_json = json.loads(parsed_line)
+            event_type = parsed_json.get("event_type", None)
             payload = parsed_json.get("payload", None)
-            if split_by_frame_id_and_compile_id:
-                if not payload:
-                    logger.warning("No payload found in the parsed JSON.")
-                    continue
-                pt_info = payload.get("pt_info", {})
-                frame_id = pt_info.get("frame_id", None)
-                frame_compile_id = pt_info.get("frame_compile_id", None)
-                compiled_autograd_id = pt_info.get("compiled_autograd_id", "-")
-                attempt_id = pt_info.get("attempt_id", 0)
-                output_file_name = ""
-                if frame_id is not None or frame_compile_id is not None:
-                    output_file_name = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{compiled_autograd_id}.ndjson"
+
+            output_file = None
+
+            if event_type == "compilation":
+                # Handle compilation events
+                if split_by_frame_id_and_compile_id:
+                    if not payload:
+                        logger.warning("No payload found in the compilation event.")
+                        continue
+                    pt_info = payload.get("pt_info", {})
+                    frame_id = pt_info.get("frame_id", None)
+                    frame_compile_id = pt_info.get("frame_compile_id", None)
+                    compiled_autograd_id = pt_info.get("compiled_autograd_id", "-")
+                    attempt_id = pt_info.get("attempt_id", 0)
+                    output_file_name = ""
+                    if frame_id is not None or frame_compile_id is not None:
+                        output_file_name = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{compiled_autograd_id}.ndjson"
+                    else:
+                        logger.debug(
+                            "No frame_id or frame_compile_id found in the payload."
+                        )
+                        output_file_name = (
+                            f"{file_name_without_extension}_mapped.ndjson"
+                        )
                 else:
-                    logger.debug(
-                        "No frame_id or frame_compile_id found in the payload."
-                    )
                     output_file_name = f"{file_name_without_extension}_mapped.ndjson"
+                output_file = os.path.join(output_dir, output_file_name)
+
+                # Record the kernel hash to file mapping
+                if payload:
+                    metadata = payload.get("metadata", {})
+                    kernel_hash = metadata.get("hash", None)
+                    if kernel_hash:
+                        kernel_hash_to_file[kernel_hash] = output_file
+                        logger.debug(
+                            f"Recorded compilation hash {kernel_hash} -> {output_file}"
+                        )
+
+            elif event_type == "launch":
+                # Handle launch events
+                compilation_metadata = parsed_json.get("compilation_metadata", {})
+                kernel_hash = compilation_metadata.get("hash", None)
+                if kernel_hash:
+                    if kernel_hash in kernel_hash_to_file:
+                        # Use the same output file as the corresponding compilation event
+                        output_file = kernel_hash_to_file[kernel_hash]
+                        logger.debug(
+                            f"Found launch event for hash {kernel_hash}, using file {output_file}"
+                        )
+                    else:
+                        logger.warning(
+                            f"No compilation event found for launch hash {kernel_hash}, skipping this launch event."
+                        )
+                        continue
+                else:
+                    logger.warning(
+                        f"Launch event without kernel hash, skipping this launch event in {file_path}:{i + 1}."
+                    )
+
             else:
-                output_file_name = f"{file_name_without_extension}_mapped.ndjson"
-            output_file = os.path.join(output_dir, output_file_name)
-            outputs[output_file].append(parsed_line)
-            logger.debug(f"output file: {output_file}")
+                logger.info(f"Skipping line {i + 1} with event type {event_type}")
+            if output_file:
+                outputs[output_file].append(parsed_line)
+                logger.debug(f"output file: {output_file}")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
