@@ -217,12 +217,12 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
 
               {/* Unchanged Fields */}
               {kernel.launchDiff.sames && Object.keys(kernel.launchDiff.sames).length > 0 && (
-                 <div className="mb-4">
-                    <h4 className="text-md font-semibold mb-2 text-gray-800">
-                    Unchanged Launch Arguments
-                    </h4>
-                    <ArgumentViewer args={kernel.launchDiff.sames.extracted_args} />
-                </div>
+              <div className="mb-4">
+                <h4 className="text-md font-semibold mb-2 text-gray-800">
+                  Unchanged Launch Arguments
+                </h4>
+                <ArgumentViewer args={kernel.launchDiff.sames.extracted_args} />
+              </div>
               )}
 
               {(() => {
