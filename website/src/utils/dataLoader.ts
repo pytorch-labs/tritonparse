@@ -99,6 +99,12 @@ export interface LogEntry {
         source_mappings?: Record<string, Record<string, SourceMapping>>; // Alternative field name for source_mapping
         python_source?: PythonSourceCodeInfo;
     };
+    // Fields for launch_diff event type
+    hash?: string;
+    name?: string;
+    total_launches?: number;
+    diffs?: any;
+    sames?: any;
 }
 
 /**
@@ -113,6 +119,7 @@ export interface ProcessedKernel {
     sourceMappings?: Record<string, Record<string, SourceMapping>>; // Source mappings for each IR file
     pythonSourceInfo?: PythonSourceCodeInfo; // Python source code information
     metadata?: KernelMetadata; // Compilation metadata
+    launchDiff?: any; // Aggregated launch event differences
 }
 
 /**
@@ -121,6 +128,7 @@ export interface ProcessedKernel {
  * @returns Array of LogEntry objects
  */
 export function parseLogData(textData: string): LogEntry[] {
+    console.log("Starting to parse NDJSON data...");
     if (typeof textData !== 'string') {
         throw new Error("Input must be a string in NDJSON format");
     }
@@ -142,9 +150,11 @@ export function parseLogData(textData: string): LogEntry[] {
         }
 
         if (entries.length === 0) {
+            console.error("No valid JSON entries found in NDJSON data");
             throw new Error("No valid JSON entries found in NDJSON data");
         }
 
+        console.log(`Successfully parsed ${entries.length} log entries.`);
         return entries;
     } catch (error) {
         console.error("Error parsing NDJSON data:", error);
@@ -274,12 +284,19 @@ export function loadLogDataFromFile(file: File): Promise<LogEntry[]> {
  * @returns Array of processed kernel objects ready for display
  */
 export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
-    const kernels: ProcessedKernel[] = [];
-    for (let i = 0; i < logEntries.length; i++) {
-        const entry = logEntries[i];
-        // Check for kernel events by event_type
+    console.log("Processing kernel data... Total entries:", logEntries.length);
+    const kernelsByHash: Map<string, ProcessedKernel> = new Map();
+
+    // First pass: process all compilation events
+    for (const entry of logEntries) {
         if (entry.event_type === "compilation" && entry.payload) {
-            // Ensure payload has file_path and file_content
+            const hash = entry.payload.metadata?.hash;
+            if (!hash) {
+                console.warn("Compilation event missing hash", entry);
+                continue;
+            }
+            console.log(`Processing compilation event for hash: ${hash}`)
+
             if (!entry.payload.file_path || !entry.payload.file_content) {
                 console.warn(
                     "Kernel event missing file_path or file_content",
@@ -287,10 +304,9 @@ export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
                 );
                 continue;
             }
-            // Extract kernel name from IR filename
+
             const irFileNames = Object.keys(entry.payload.file_path);
             let kernelName = "unknown_kernel";
-            // Use first IR file name to determine kernel name
             if (irFileNames.length > 0) {
                 const fileName = irFileNames[0];
                 const nameParts = fileName.split(".");
@@ -300,19 +316,9 @@ export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
                         : fileName;
             }
 
-            // Extract source mapping information from payload if available
-            let sourceMappings: Record<
-                string,
-                Record<string, SourceMapping>
-            > = {};
+            const sourceMappings = entry.payload.source_mappings || {};
 
-            if (entry.payload.source_mappings) {
-                // Use source mappings from the trace file
-                sourceMappings = entry.payload.source_mappings;
-            }
-
-            // Create processed kernel object and add to results
-            kernels.push({
+            const newKernel: ProcessedKernel = {
                 name: kernelName,
                 sourceFiles: entry.stack?.map(entry =>
                     typeof entry.filename === 'string' ? entry.filename :
@@ -324,9 +330,32 @@ export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
                 sourceMappings,
                 pythonSourceInfo: entry.payload.python_source,
                 metadata: entry.payload.metadata,
-            });
-
+            };
+            kernelsByHash.set(hash, newKernel);
+            console.log(`Stored kernel ${kernelName} with hash ${hash} into map.`);
         }
     }
-    return kernels;
+
+    console.log(`Finished first pass. Total kernels processed: ${kernelsByHash.size}`);
+
+    // Second pass: attach launch_diff events
+    console.log("Starting second pass to attach launch_diff events...");
+    for (const entry of logEntries) {
+        if (entry.event_type === "launch_diff") { // No payload for launch_diff
+            console.log("Found a launch_diff event:", entry);
+            const hash = entry.hash;
+            console.log(`launch_diff event hash: ${hash}`);
+            if (hash && kernelsByHash.has(hash)) {
+                const kernel = kernelsByHash.get(hash)!;
+                console.log(`Found matching kernel for hash ${hash}. Attaching launch_diff.`);
+                kernel.launchDiff = entry; // Attach the entire event object
+            } else {
+                console.warn(`Could not find matching kernel for launch_diff hash: ${hash}`);
+            }
+        }
+    }
+
+    const finalKernels = Array.from(kernelsByHash.values());
+    console.log("Finished processing. Final kernel objects:", finalKernels);
+    return finalKernels;
 }

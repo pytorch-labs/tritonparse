@@ -1,4 +1,5 @@
 import React from "react";
+import ArgumentViewer from "../components/ArgumentViewer";
 import { ProcessedKernel } from "../utils/dataLoader";
 
 interface KernelOverviewProps {
@@ -49,15 +50,15 @@ interface MetadataItemProps {
 const MetadataItem: React.FC<MetadataItemProps> = ({
   label,
   value,
-  span = 1
+  span = 1,
 }) => (
-  <div className={`flex flex-col ${span > 1 ? `col-span-${span}` : ''} ${span === 0 ? 'col-span-full' : ''}`}>
-    <span className="text-sm font-medium text-gray-500">
-      {label}
-    </span>
-    <span className="font-mono text-sm break-words">
-      {value}
-    </span>
+  <div
+    className={`flex flex-col ${span > 1 ? `col-span-${span}` : ""} ${
+      span === 0 ? "col-span-full" : ""
+    }`}
+  >
+    <span className="text-sm font-medium text-gray-500">{label}</span>
+    <span className="font-mono text-sm break-words">{value}</span>
   </div>
 );
 
@@ -136,26 +137,38 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                   .filter(([_key, value]) => !isLongValue(value))
                   .map(([key, value]) => {
                     return (
-                      <MetadataItem 
-                        key={key} 
-                        label={key.split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")} 
-                        value={formatMetadataValue(value)} 
+                      <MetadataItem
+                        key={key}
+                        label={key
+                          .split("_")
+                          .map(
+                            (word) =>
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join(" ")}
+                        value={formatMetadataValue(value)}
                       />
                     );
                   })}
               </div>
 
               {/* Long fields in separate section within same container */}
-              {Object.entries(kernel.metadata)
-                .filter(([_key, value]) => isLongValue(value))
-                .length > 0 && (
+              {Object.entries(kernel.metadata).filter(([_key, value]) =>
+                isLongValue(value)
+              ).length > 0 && (
                 <div className="space-y-3 border-t border-gray-200 pt-4">
                   {Object.entries(kernel.metadata)
                     .filter(([_key, value]) => isLongValue(value))
                     .map(([key, value]) => (
                       <div key={key} className="w-full">
                         <span className="text-sm font-medium text-gray-500 block mb-1">
-                          {key.split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")}
+                          {key
+                            .split("_")
+                            .map(
+                              (word) =>
+                                word.charAt(0).toUpperCase() + word.slice(1)
+                            )
+                            .join(" ")}
                         </span>
                         <span className="font-mono text-sm block break-all">
                           {formatMetadataValue(value)}
@@ -168,10 +181,108 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
           </div>
         )}
 
+        {/* Launch Analysis Section */}
+        {kernel.launchDiff && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium mb-3 text-gray-800">
+              Launch Analysis
+            </h3>
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+              <p className="text-sm text-gray-700 mb-4">
+                <span className="font-semibold">Total Launches:</span>{" "}
+                {kernel.launchDiff.total_launches}
+              </p>
+
+              {/* Unchanged Fields */}
+              <div className="mb-4">
+                <h4 className="text-md font-semibold mb-2 text-gray-800">
+                  Unchanged Launch Arguments
+                </h4>
+                <ArgumentViewer args={kernel.launchDiff.sames.extracted_args} />
+              </div>
+
+              {(() => {
+                const otherSames = Object.fromEntries(
+                  Object.entries(kernel.launchDiff.sames).filter(
+                    ([key]) =>
+                      key !== "compilation_metadata" &&
+                      key !== "extracted_args" &&
+                      key !== "event_type"
+                  )
+                );
+
+                if (Object.keys(otherSames).length > 0) {
+                  return (
+                    <div className="mb-4">
+                      <h4 className="text-md font-semibold mb-2 text-gray-800">
+                        Other Unchanged Fields
+                      </h4>
+                      <div className="grid grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] gap-3 p-2 bg-white rounded border border-gray-200">
+                        {Object.entries(otherSames).map(([key, value]) => (
+                          <MetadataItem
+                            key={key}
+                            label={key
+                              .split("_")
+                              .map(
+                                (word) =>
+                                  word.charAt(0).toUpperCase() + word.slice(1)
+                              )
+                              .join(" ")}
+                            value={formatMetadataValue(value)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Differing Fields */}
+              <div className="mb-4">
+                <h4 className="text-md font-semibold mb-2 text-gray-800">
+                  Differing Fields
+                </h4>
+                <div className="space-y-3">
+                  {Object.entries(kernel.launchDiff.diffs).map(
+                    ([key, diff]: [string, any]) => (
+                      <div
+                        key={key}
+                        className="w-full p-2 bg-white rounded border border-gray-200"
+                      >
+                        <span className="text-sm font-medium text-gray-600 block mb-1 break-all">
+                          {key}
+                        </span>
+                        {diff.type === "values_list" ? (
+                          <ul className="list-disc list-inside pl-2 text-sm">
+                            {diff.values.map((item: any, index: number) => (
+                              <li
+                                key={index}
+                                className="font-mono text-gray-800 break-all"
+                              >
+                                {JSON.stringify(item.value)} (first seen in launch
+                                #{item.first_occurrence_index + 1})
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="font-mono text-sm text-gray-800">
+                            {diff.summary_text}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Stack Trace */}
         <div className="mb-4">
           <h3 className="text-lg font-medium mb-2 text-gray-800">
-            Stack Trace
+            Compilation Stack Trace
           </h3>
           <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto max-h-64">
             {kernel.stack.map((entry, index) => (
