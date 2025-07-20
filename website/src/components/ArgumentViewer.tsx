@@ -48,6 +48,7 @@ const ArgumentRow: React.FC<{
                     <div className="w-48 flex-shrink-0 font-semibold text-gray-800 break-all">{argName}</div>
                     <div className="flex-1 text-gray-500 italic text-sm flex items-center">
                         Complex argument with internal differences
+                        {/* Dropdown arrow icon */}
                         <svg className={`w-4 h-4 ml-2 transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
                     </div>
                 </div>

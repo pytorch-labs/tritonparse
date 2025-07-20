@@ -42,6 +42,7 @@ const StackDiffViewer: React.FC<{ stackDiff: any }> = ({ stackDiff }) => {
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         Stack Traces
+        {/* Dropdown arrow icon */}
         <svg
           className={`w-4 h-4 ml-2 transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
           fill="none"

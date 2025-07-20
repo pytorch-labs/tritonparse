@@ -22,7 +22,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ diffs }) => {
     )
   );
 
-  const renderSimpleDiff = (key: string, data: any) => {
+  const renderSimpleDiff = (_key: string, data: any) => {
     if (data.diff_type === "summary") {
       return <p className="font-mono text-sm text-gray-800">{data.summary_text}</p>;
     }
