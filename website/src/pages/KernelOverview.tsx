@@ -1,4 +1,6 @@
 import React from "react";
+import ArgumentViewer from "../components/ArgumentViewer";
+import DiffViewer from "../components/DiffViewer";
 import { ProcessedKernel } from "../utils/dataLoader";
 
 interface KernelOverviewProps {
@@ -7,6 +9,14 @@ interface KernelOverviewProps {
   onSelectKernel: (index: number) => void;
   onViewIR: (irType: string) => void;
 }
+
+/**
+ * Determines if a metadata value is considered "long" and should be displayed at the end
+ */
+const isLongValue = (value: any): boolean => {
+  const formattedString = formatMetadataValue(value);
+  return formattedString.length > 50;
+};
 
 /**
  * Formats a value for display in the metadata section
@@ -41,15 +51,15 @@ interface MetadataItemProps {
 const MetadataItem: React.FC<MetadataItemProps> = ({
   label,
   value,
-  span = 1
+  span = 1,
 }) => (
-  <div className={`flex flex-col ${span > 1 ? `col-span-${span}` : ''}`}>
-    <span className="text-sm font-medium text-gray-500">
-      {label}
-    </span>
-    <span className="font-mono text-sm overflow-hidden text-ellipsis">
-      {value}
-    </span>
+  <div
+    className={`flex flex-col ${span > 1 ? `col-span-${span}` : ""} ${
+      span === 0 ? "col-span-full" : ""
+    }`}
+  >
+    <span className="text-sm font-medium text-gray-500">{label}</span>
+    <span className="font-mono text-sm break-words">{value}</span>
   </div>
 );
 
@@ -121,69 +131,152 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
               Compilation Metadata
             </h3>
             <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Hash */}
-                {kernel.metadata.hash && (
-                  <MetadataItem label="Hash" value={kernel.metadata.hash} />
-                )}
-
-                {/* Target Info */}
-                {kernel.metadata.target && (
-                  <>
-                    <MetadataItem label="Backend" value={kernel.metadata.target.backend || "N/A"} />
-                    <MetadataItem label="Architecture" value={kernel.metadata.target.arch ? `SM ${kernel.metadata.target.arch}` : "N/A"} />
-                    <MetadataItem label="Warp Size" value={kernel.metadata.target.warp_size || "N/A"} />
-                  </>
-                )}
-
-                {/* Execution Configuration */}
-                <MetadataItem label="Num Warps" value={kernel.metadata.num_warps !== undefined ? kernel.metadata.num_warps : "N/A"} />
-                <MetadataItem label="Num CTAs" value={kernel.metadata.num_ctas !== undefined ? kernel.metadata.num_ctas : "N/A"} />
-                <MetadataItem label="Num Stages" value={kernel.metadata.num_stages !== undefined ? kernel.metadata.num_stages : "N/A"} />
-
-                {/* Cluster Dimensions */}
-                {kernel.metadata.cluster_dims && (
-                  <MetadataItem label="Cluster Dimensions" value={kernel.metadata.cluster_dims.join(" × ")} />
-                )}
-
-                {/* Other Metadata */}
-                <MetadataItem label="FP Fusion" value={kernel.metadata.enable_fp_fusion !== undefined ? kernel.metadata.enable_fp_fusion ? "Enabled" : "Disabled" : "N/A"} />
-                <MetadataItem label="Cooperative Grid" value={kernel.metadata.launch_cooperative_grid !== undefined ? kernel.metadata.launch_cooperative_grid ? "Yes" : "No" : "N/A"} />
-
-                {/* Supported FP8 Types */}
-                {kernel.metadata.supported_fp8_dtypes &&
-                  kernel.metadata.supported_fp8_dtypes.length > 0 && (
-                    <MetadataItem label="Supported FP8 Types" value={kernel.metadata.supported_fp8_dtypes.join(", ")} span={2} />
-                  )}
-
-                {/* Additional metadata fields */}
+              {/* Short fields in responsive grid */}
+              <div className="grid grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] gap-3 mb-4">
+                {/* All short metadata fields */}
                 {Object.entries(kernel.metadata)
-                  .filter(
-                    ([key]) =>
-                      ![
-                        "hash",
-                        "target",
-                        "num_warps",
-                        "num_ctas",
-                        "num_stages",
-                        "cluster_dims",
-                        "enable_fp_fusion",
-                        "launch_cooperative_grid",
-                        "supported_fp8_dtypes",
-                      ].includes(key)
-                  )
-                  .map(([key, value]) => (
-                    <MetadataItem key={key} label={key.split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")} value={formatMetadataValue(value)} />
-                  ))}
+                  .filter(([_key, value]) => !isLongValue(value))
+                  .map(([key, value]) => {
+                    return (
+                      <MetadataItem
+                        key={key}
+                        label={key
+                          .split("_")
+                          .map(
+                            (word) =>
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                          )
+                          .join(" ")}
+                        value={formatMetadataValue(value)}
+                      />
+                    );
+                  })}
               </div>
+
+              {/* Long fields in separate section within same container */}
+              {Object.entries(kernel.metadata).filter(([_key, value]) =>
+                isLongValue(value)
+              ).length > 0 && (
+                <div className="space-y-3 border-t border-gray-200 pt-4">
+                  {Object.entries(kernel.metadata)
+                    .filter(([_key, value]) => isLongValue(value))
+                    .map(([key, value]) => (
+                      <div key={key} className="w-full">
+                        <span className="text-sm font-medium text-gray-500 block mb-1">
+                          {key
+                            .split("_")
+                            .map(
+                              (word) =>
+                                word.charAt(0).toUpperCase() + word.slice(1)
+                            )
+                            .join(" ")}
+                        </span>
+                        <span className="font-mono text-sm block break-all">
+                          {formatMetadataValue(value)}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
+        {/* Launch Analysis Section */}
+        {kernel.launchDiff && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium mb-3 text-gray-800">
+              Launch Analysis
+            </h3>
+            <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+              <p className="text-sm text-gray-700 mb-4">
+                <span className="font-semibold">Total Launches:</span>{" "}
+                {kernel.launchDiff.total_launches}
+              </p>
+
+              {/* Launch Index Map */}
+              {kernel.launchDiff.launch_index_map && (
+                <div className="mb-4">
+                  <h4 className="text-md font-semibold mb-2 text-gray-800">
+                    Launch Locations in Original Trace{" "}
+                    <span className="text-sm font-normal text-gray-500">
+                      (1-based line numbers)
+                    </span>
+                  </h4>
+                  <div className="font-mono text-sm bg-gray-100 p-2 rounded">
+                    {kernel.launchDiff.launch_index_map
+                      .map((r: any) =>
+                        r.start === r.end
+                          ? `${r.start}`
+                          : `${r.start}-${r.end}`
+                      )
+                      .join(", ")}
+                  </div>
+                </div>
+              )}
+
+              {/* Unchanged Fields */}
+              {kernel.launchDiff.sames && Object.keys(kernel.launchDiff.sames).length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-md font-semibold mb-2 text-gray-800">
+                  Unchanged Launch Arguments
+                </h4>
+                <ArgumentViewer args={kernel.launchDiff.sames.extracted_args} />
+              </div>
+              )}
+
+              {(() => {
+                const otherSames = Object.fromEntries(
+                  Object.entries(kernel.launchDiff.sames).filter(
+                    ([key]) =>
+                      key !== "compilation_metadata" &&
+                      key !== "extracted_args" &&
+                      key !== "event_type"
+                  )
+                );
+
+                if (Object.keys(otherSames).length > 0) {
+                  return (
+                    <div className="mb-4">
+                      <h4 className="text-md font-semibold mb-2 text-gray-800">
+                        Other Unchanged Fields
+                      </h4>
+                      <div className="grid grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] gap-3 p-2 bg-white rounded border border-gray-200">
+                        {Object.entries(otherSames).map(([key, value]) => (
+                          <MetadataItem
+                            key={key}
+                            label={key
+                              .split("_")
+                              .map(
+                                (word) =>
+                                  word.charAt(0).toUpperCase() + word.slice(1)
+                              )
+                              .join(" ")}
+                            value={formatMetadataValue(value)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Differing Fields */}
+              <div className="mb-4">
+                <h4 className="text-md font-semibold mb-2 text-gray-800">
+                  Differing Fields
+                </h4>
+                <DiffViewer diffs={kernel.launchDiff.diffs} />
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Stack Trace */}
         <div className="mb-4">
           <h3 className="text-lg font-medium mb-2 text-gray-800">
-            Stack Trace
+            Compilation Stack Trace
           </h3>
           <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto max-h-64">
             {kernel.stack.map((entry, index) => (
