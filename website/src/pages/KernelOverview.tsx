@@ -1,5 +1,6 @@
 import React from "react";
 import ArgumentViewer from "../components/ArgumentViewer";
+import DiffViewer from "../components/DiffViewer";
 import { ProcessedKernel } from "../utils/dataLoader";
 
 interface KernelOverviewProps {
@@ -193,13 +194,36 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                 {kernel.launchDiff.total_launches}
               </p>
 
+              {/* Launch Index Map */}
+              {kernel.launchDiff.launch_index_map && (
+                <div className="mb-4">
+                  <h4 className="text-md font-semibold mb-2 text-gray-800">
+                    Launch Locations in Original Trace{" "}
+                    <span className="text-sm font-normal text-gray-500">
+                      (1-based line numbers)
+                    </span>
+                  </h4>
+                  <div className="font-mono text-sm bg-gray-100 p-2 rounded">
+                    {kernel.launchDiff.launch_index_map
+                      .map((r: any) =>
+                        r.start === r.end
+                          ? `${r.start}`
+                          : `${r.start}-${r.end}`
+                      )
+                      .join(", ")}
+                  </div>
+                </div>
+              )}
+
               {/* Unchanged Fields */}
-              <div className="mb-4">
-                <h4 className="text-md font-semibold mb-2 text-gray-800">
-                  Unchanged Launch Arguments
-                </h4>
-                <ArgumentViewer args={kernel.launchDiff.sames.extracted_args} />
-              </div>
+              {kernel.launchDiff.sames && Object.keys(kernel.launchDiff.sames).length > 0 && (
+                 <div className="mb-4">
+                    <h4 className="text-md font-semibold mb-2 text-gray-800">
+                    Unchanged Launch Arguments
+                    </h4>
+                    <ArgumentViewer args={kernel.launchDiff.sames.extracted_args} />
+                </div>
+              )}
 
               {(() => {
                 const otherSames = Object.fromEntries(
@@ -243,37 +267,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                 <h4 className="text-md font-semibold mb-2 text-gray-800">
                   Differing Fields
                 </h4>
-                <div className="space-y-3">
-                  {Object.entries(kernel.launchDiff.diffs).map(
-                    ([key, diff]: [string, any]) => (
-                      <div
-                        key={key}
-                        className="w-full p-2 bg-white rounded border border-gray-200"
-                      >
-                        <span className="text-sm font-medium text-gray-600 block mb-1 break-all">
-                          {key}
-                        </span>
-                        {diff.type === "values_list" ? (
-                          <ul className="list-disc list-inside pl-2 text-sm">
-                            {diff.values.map((item: any, index: number) => (
-                              <li
-                                key={index}
-                                className="font-mono text-gray-800 break-all"
-                              >
-                                {JSON.stringify(item.value)} (first seen in launch
-                                #{item.first_occurrence_index + 1})
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="font-mono text-sm text-gray-800">
-                            {diff.summary_text}
-                          </p>
-                        )}
-                      </div>
-                    )
-                  )}
-                </div>
+                <DiffViewer diffs={kernel.launchDiff.diffs} />
               </div>
             </div>
           </div>

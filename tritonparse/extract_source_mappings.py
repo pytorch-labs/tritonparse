@@ -14,7 +14,6 @@ and extracts bidirectional mappings between:
 """
 
 import argparse
-import copy
 import gzip
 import json
 import logging
@@ -534,174 +533,132 @@ def parse_single_file(
     split_by_frame_id_and_compile_id: bool = True,
 ):
     """
-    Process a single file and extract source code mappings.
+    Process a single file, correctly group events by kernel, and extract mappings.
 
-    This function takes a file path as input, reads the file content, and extracts
-    source code mappings from Triton trace JSON files. It processes each line of the file,
-    parses the trace content to extract IR mappings, and writes the updated content
-    to output files.
+    This function reads a trace file, groups compilation and launch events by
+    their kernel hash, generates a launch_diff event for each kernel, and writes
+    the processed data to output files.
 
     Args:
         file_path (str): The path to the file to be processed.
-        output_dir (str, optional): Directory to save the output files with mappings.
-        split_by_frame_id_and_compile_id (bool, optional): Whether to split output files
-            by frame_id and compile_id. Defaults to True.
-
-    Returns:
-        None. The function writes the processed data to files in the output_dir.
-        Each output file will contain the original trace data enriched with source mappings
-        in NDJSON format (one JSON object per line).
+        output_dir (str, optional): Directory to save the output files.
+        split_by_frame_id_and_compile_id (bool, optional): Whether to split
+            output files by frame_id and compile_id. Defaults to True.
     """
-    outputs = defaultdict(list)
-    # Dictionary to track kernel hash to output file mapping
-    # Format: {hash: output_file_path}
-    kernel_hash_to_file = {}
+    kernels_by_hash = defaultdict(
+        lambda: {"compilation": None, "launches": [], "output_file": None}
+    )
 
-    # Set default output directory if not provided
     output_dir = output_dir or os.path.dirname(file_path)
-
-    # Check if input file is compressed based on file extension
     is_compressed_input = file_path.endswith(".bin.ndjson")
-
-    # Open file in appropriate mode - use gzip.open for compressed files
-    if is_compressed_input:
-        # Use gzip.open which automatically handles member concatenation
-        file_handle = gzip.open(file_path, "rt", encoding="utf-8")
-    else:
-        file_handle = open(file_path, "r")
+    file_handle = (
+        gzip.open(file_path, "rt", encoding="utf-8")
+        if is_compressed_input
+        else open(file_path, "r")
+    )
 
     with file_handle as f:
         file_name = os.path.basename(file_path)
-        # Handle .bin.ndjson extension properly
-        if is_compressed_input:
-            file_name_without_extension = file_name[:-11]  # Remove .bin.ndjson
-        else:
-            file_name_without_extension = os.path.splitext(file_name)[0]
+        file_name_without_extension = (
+            file_name[:-11] if is_compressed_input else os.path.splitext(file_name)[0]
+        )
 
-        # Process lines uniformly for both compressed and uncompressed files
         for i, line in enumerate(f):
             logger.debug(f"Processing line {i + 1} in {file_path}")
-
             json_str = line.strip()
             if not json_str:
                 continue
 
-            parsed_line = parse_single_trace_content(json_str)
-            if not parsed_line:
-                logger.warning(f"Failed to parse line {i + 1} in {file_path}")
+            # We don't need to generate full mappings for every line here,
+            # just enough to get the event type and necessary IDs.
+            try:
+                parsed_json = json.loads(json_str)
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse JSON on line {i + 1} in {file_path}")
                 continue
 
-            parsed_json = json.loads(parsed_line)
             event_type = parsed_json.get("event_type", None)
-            payload = parsed_json.get("payload", None)
-
-            output_file = None
+            payload = parsed_json.get("payload", {})
 
             if event_type == "compilation":
-                # Handle compilation events
-                if split_by_frame_id_and_compile_id:
-                    if not payload:
-                        logger.warning("No payload found in the compilation event.")
-                        continue
-                    pt_info = payload.get("pt_info", {})
-                    frame_id = pt_info.get("frame_id", None)
-                    frame_compile_id = pt_info.get("frame_compile_id", None)
-                    compiled_autograd_id = pt_info.get("compiled_autograd_id", "-")
-                    attempt_id = pt_info.get("attempt_id", 0)
-                    output_file_name = ""
-                    if frame_id is not None or frame_compile_id is not None:
-                        output_file_name = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{compiled_autograd_id}.ndjson"
-                    else:
-                        logger.debug(
-                            "No frame_id or frame_compile_id found in the payload."
-                        )
-                        output_file_name = (
-                            f"{file_name_without_extension}_mapped.ndjson"
-                        )
-                else:
-                    output_file_name = f"{file_name_without_extension}_mapped.ndjson"
-                output_file = os.path.join(output_dir, output_file_name)
+                kernel_hash = payload.get("metadata", {}).get("hash")
+                if not kernel_hash:
+                    continue
 
-                # Record the kernel hash to file mapping
-                if payload:
-                    metadata = payload.get("metadata", {})
-                    kernel_hash = metadata.get("hash", None)
-                    if kernel_hash:
-                        kernel_hash_to_file[kernel_hash] = output_file
-                        logger.debug(
-                            f"Recorded compilation hash {kernel_hash} -> {output_file}"
-                        )
+                if split_by_frame_id_and_compile_id:
+                    pt_info = payload.get("pt_info", {})
+                    frame_id = pt_info.get("frame_id")
+                    frame_compile_id = pt_info.get("frame_compile_id")
+                    attempt_id = pt_info.get("attempt_id", 0)
+                    cai = pt_info.get("compiled_autograd_id", "-")
+                    if frame_id is not None or frame_compile_id is not None:
+                        fname = f"f{frame_id}_fc{frame_compile_id}_a{attempt_id}_cai{cai}.ndjson"
+                    else:
+                        fname = f"{file_name_without_extension}_mapped.ndjson"
+                else:
+                    fname = f"{file_name_without_extension}_mapped.ndjson"
+
+                output_file = os.path.join(output_dir, fname)
+                # The full processing is deferred until the final write.
+                kernels_by_hash[kernel_hash]["compilation"] = json_str
+                kernels_by_hash[kernel_hash]["output_file"] = output_file
 
             elif event_type == "launch":
-                # Handle launch events
-                compilation_metadata = parsed_json.get("compilation_metadata", {})
-                kernel_hash = compilation_metadata.get("hash", None)
+                kernel_hash = parsed_json.get("compilation_metadata", {}).get("hash")
                 if kernel_hash:
-                    if kernel_hash in kernel_hash_to_file:
-                        # Use the same output file as the corresponding compilation event
-                        output_file = kernel_hash_to_file[kernel_hash]
-                        logger.debug(
-                            f"Found launch event for hash {kernel_hash}, using file {output_file}"
-                        )
-                    else:
-                        logger.warning(
-                            f"No compilation event found for launch hash {kernel_hash}, skipping this launch event."
-                        )
-                        continue
-                else:
-                    logger.warning(
-                        f"Launch event without kernel hash, skipping this launch event in {file_path}:{i + 1}."
+                    kernels_by_hash[kernel_hash]["launches"].append(
+                        (parsed_json, i + 1)
                     )
 
-            else:
-                logger.info(f"Skipping line {i + 1} with event type {event_type}")
-            if output_file:
-                outputs[output_file].append(parsed_line)
-                logger.debug(f"output file: {output_file}")
+    # Organize lines for final output, keyed by output file path
+    all_output_lines = defaultdict(list)
+    for _kernel_hash, data in kernels_by_hash.items():
+        compilation_json_str = data["compilation"]
+        launches_with_indices = data["launches"]
+        output_file = data["output_file"]
+
+        if not output_file:
+            logger.warning(f"No output file for kernel hash {_kernel_hash}, skipping.")
+            continue
+
+        # Process the compilation event now to include source mappings
+        if compilation_json_str:
+            processed_compilation_line = parse_single_trace_content(
+                compilation_json_str
+            )
+            all_output_lines[output_file].append(processed_compilation_line)
+            compilation_event = json.loads(processed_compilation_line)
+        else:
+            compilation_event = None
+
+        for launch_event, _ in launches_with_indices:
+            all_output_lines[output_file].append(
+                json.dumps(launch_event, separators=(",", ":")) + "\n"
+            )
+
+        if compilation_event and launches_with_indices:
+            sames, diffs, launch_index_map = _generate_launch_diff(
+                launches_with_indices
+            )
+            launch_diff_event = {
+                "event_type": "launch_diff",
+                "hash": _kernel_hash,
+                "name": compilation_event.get("payload", {})
+                .get("metadata", {})
+                .get("name"),
+                "total_launches": len(launches_with_indices),
+                "launch_index_map": launch_index_map,
+                "diffs": diffs,
+                "sames": sames,
+            }
+            all_output_lines[output_file].append(
+                json.dumps(launch_diff_event, separators=(",", ":")) + "\n"
+            )
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    for output_file, parsed_lines in outputs.items():
-        with open(output_file, "w") as out:
-            out.writelines(parsed_lines)
 
-    # Post-process to generate launch diffs for each kernel hash
-    for output_file, parsed_lines in outputs.items():
-        kernels_by_hash = defaultdict(lambda: {"compilation": None, "launches": []})
-
-        # Group compilations and launches by kernel hash
-        for line in parsed_lines:
-            event = json.loads(line)
-            event_type = event.get("event_type")
-            if event_type == "compilation":
-                kernel_hash = event.get("payload", {}).get("metadata", {}).get("hash")
-                if kernel_hash:
-                    kernels_by_hash[kernel_hash]["compilation"] = event
-            elif event_type == "launch":
-                kernel_hash = event.get("compilation_metadata", {}).get("hash")
-                if kernel_hash:
-                    kernels_by_hash[kernel_hash]["launches"].append(event)
-
-        # Generate and append launch_diff event for each kernel
-        for kernel_hash, data in kernels_by_hash.items():
-            compilation_event = data["compilation"]
-            launches = data["launches"]
-
-            if compilation_event and launches:
-                sames, diffs = _generate_launch_diff(launches)
-                launch_diff_event = {
-                    "event_type": "launch_diff",
-                    "hash": kernel_hash,
-                    "name": compilation_event.get("payload", {}).get("metadata", {}).get("name"),
-                    "total_launches": len(launches),
-                    "diffs": diffs,
-                    "sames": sames,
-                }
-                # Append the new event to the list of lines for the current output file
-                outputs[output_file].append(json.dumps(launch_diff_event, separators=(",", ":")) + "\n")
-
-    # Final write to files
-    for output_file, final_lines in outputs.items():
+    for output_file, final_lines in all_output_lines.items():
         with open(output_file, "w") as out:
             out.writelines(final_lines)
 
@@ -729,7 +686,9 @@ def parse_args():
 SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr"]
 
 
-def _flatten_dict(d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
+def _flatten_dict(
+    d: Dict[str, Any], parent_key: str = "", sep: str = "."
+) -> Dict[str, Any]:
     """
     Flattens a nested dictionary.
     """
@@ -759,55 +718,140 @@ def _unflatten_dict(d: Dict[str, Any], sep: str = ".") -> Dict[str, Any]:
     return result
 
 
-def _generate_launch_diff(launches: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def _to_ranges(indices: List[int]) -> List[Dict[str, int]]:
     """
-    Compares a list of launch events and returns dictionaries of same and different fields.
+    Converts a sorted list of indices into a list of continuous ranges.
+    e.g., [0, 1, 2, 5, 6, 8] -> [{'start': 0, 'end': 2}, {'start': 5, 'end': 6}, {'start': 8, 'end': 8}]
+    """
+    if not indices:
+        return []
+
+    indices = sorted(indices)
+    ranges = []
+    start = indices[0]
+    end = indices[0]
+
+    for i in range(1, len(indices)):
+        if indices[i] == end + 1:
+            end = indices[i]
+        else:
+            ranges.append({"start": start, "end": end})
+            start = end = indices[i]
+
+    ranges.append({"start": start, "end": end})
+    return ranges
+
+
+def _generate_launch_diff(
+    launches: List[Tuple[Dict[str, Any], int]],
+) -> Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, int]]]:
+    """
+    Compares a list of launch events and returns sames, diffs, and an index map.
     """
     if not launches:
-        return {}, {}
+        return {}, {}, []
 
-    # Use the first launch as the base for comparison
-    base_launch_flat = _flatten_dict(launches[0])
-    sames = copy.deepcopy(base_launch_flat)
-    diffs = defaultdict(lambda: defaultdict(list))
+    launch_events = [launch[0] for launch in launches]
+    launch_index_map = [launch[1] for launch in launches]
 
-    for i, launch in enumerate(launches):
+    if len(launch_events) == 1:
+        return (
+            _unflatten_dict(_flatten_dict(launch_events[0])),
+            {},
+            _to_ranges(launch_index_map),
+        )
+
+    # Group values by key
+    data_by_key = defaultdict(lambda: defaultdict(list))
+    for i, launch in enumerate(launch_events):
         launch_flat = _flatten_dict(launch)
         for key, value in launch_flat.items():
-            if key not in sames:
-                # This key is already known to be different
-                # Check if the value is new
-                if value not in [v["value"] for v in diffs[key]["values"]]:
-                    diffs[key]["values"].append({"value": value, "first_occurrence_index": i})
-                continue
+            # JSON doesn't support all Python types as values directly, str is safer
+            value_str = json.dumps(value, sort_keys=True)
+            data_by_key[key][value_str].append(i)
 
-            if sames[key] != value:
-                # A field that was the same until now is different
-                base_value = sames.pop(key)
-                diffs[key]["values"].append({"value": base_value, "first_occurrence_index": 0})
-                diffs[key]["values"].append({"value": value, "first_occurrence_index": i})
+    sames_flat = {}
+    diffs_flat = {}
 
-    # Finalize the structure of diffs
-    final_diffs = {}
-    for key, data in diffs.items():
-        is_summary = any(summary_key in key for summary_key in SUMMARY_FIELDS)
-        unique_values = data["values"]
-        if is_summary:
-            final_diffs[key] = {
-                "type": "summary",
-                "unique_count": len(unique_values),
-                "summary_text": f"Varies across {len(unique_values)} unique values",
-            }
+    for key, value_groups in data_by_key.items():
+        if len(value_groups) == 1:
+            # This key has the same value across all launches
+            value_str = list(value_groups.keys())[0]
+            sames_flat[key] = json.loads(value_str)
         else:
-            final_diffs[key] = {
-                "type": "values_list",
-                "values": unique_values,
-            }
+            # This key has different values
+            is_summary = any(summary_key in key for summary_key in SUMMARY_FIELDS)
+            if is_summary:
+                diffs_flat[key] = {
+                    "diff_type": "summary",
+                    "summary_text": f"Varies across {len(value_groups)} unique values",
+                }
+            else:
+                values_dist = []
+                for value_str, indices in value_groups.items():
+                    values_dist.append(
+                        {
+                            "value": json.loads(value_str),
+                            "count": len(indices),
+                            "launches": _to_ranges(indices),
+                        }
+                    )
+                # Sort by first occurrence
+                values_dist.sort(key=lambda x: x["launches"][0]["start"])
+                diffs_flat[key] = {
+                    "diff_type": "distribution",
+                    "values": values_dist,
+                }
 
-    # Unflatten the sames dictionary to restore its original structure
-    sames_unflattened = _unflatten_dict(sames)
+    # Unflatten the results
+    sames_unflattened = _unflatten_dict(sames_flat)
+    diffs_unflattened = _unflatten_dict(diffs_flat)
 
-    return sames_unflattened, final_diffs
+    # Special handling for extracted_args to create argument_diff structures
+    if "extracted_args" in sames_unflattened or "extracted_args" in diffs_unflattened:
+        sames_args = sames_unflattened.pop("extracted_args", {})
+        diffs_args_flat = diffs_unflattened.pop("extracted_args", {})
+
+        all_arg_names = set(sames_args.keys()) | set(diffs_args_flat.keys())
+
+        final_arg_diffs = {}
+
+        for arg_name in all_arg_names:
+            if arg_name in diffs_args_flat:
+                # This argument has at least one differing sub-field.
+                arg_sames = {}
+                arg_diffs_internal = {}
+
+                # Collect all sub-fields for this argument from the original data
+                all_sub_fields = set()
+                for launch in launch_events:
+                    arg_data = launch.get("extracted_args", {}).get(arg_name, {})
+                    all_sub_fields.update(arg_data.keys())
+
+                for sub_field in all_sub_fields:
+                    flat_key = f"extracted_args.{arg_name}.{sub_field}"
+                    if flat_key in diffs_flat:
+                        arg_diffs_internal[sub_field] = diffs_flat[flat_key]
+                    elif flat_key in sames_flat:
+                        arg_sames[sub_field] = sames_flat[flat_key]
+
+                if arg_sames or arg_diffs_internal:
+                    final_arg_diffs[arg_name] = {
+                        "diff_type": "argument_diff",
+                        "sames": arg_sames,
+                        "diffs": arg_diffs_internal,
+                    }
+            elif arg_name in sames_args:
+                # This argument is entirely the same across all launches.
+                # We move it back to the main sames dict for consistency.
+                if "extracted_args" not in sames_unflattened:
+                    sames_unflattened["extracted_args"] = {}
+                sames_unflattened["extracted_args"][arg_name] = sames_args[arg_name]
+
+        if final_arg_diffs:
+            diffs_unflattened["extracted_args"] = final_arg_diffs
+
+    return sames_unflattened, diffs_unflattened, _to_ranges(launch_index_map)
 
 
 if __name__ == "__main__":
