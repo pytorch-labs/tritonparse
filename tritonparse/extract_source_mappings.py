@@ -14,6 +14,7 @@ and extracts bidirectional mappings between:
 """
 
 import argparse
+import copy
 import gzip
 import json
 import logging
@@ -664,6 +665,46 @@ def parse_single_file(
         with open(output_file, "w") as out:
             out.writelines(parsed_lines)
 
+    # Post-process to generate launch diffs for each kernel hash
+    for output_file, parsed_lines in outputs.items():
+        kernels_by_hash = defaultdict(lambda: {"compilation": None, "launches": []})
+
+        # Group compilations and launches by kernel hash
+        for line in parsed_lines:
+            event = json.loads(line)
+            event_type = event.get("event_type")
+            if event_type == "compilation":
+                kernel_hash = event.get("payload", {}).get("metadata", {}).get("hash")
+                if kernel_hash:
+                    kernels_by_hash[kernel_hash]["compilation"] = event
+            elif event_type == "launch":
+                kernel_hash = event.get("compilation_metadata", {}).get("hash")
+                if kernel_hash:
+                    kernels_by_hash[kernel_hash]["launches"].append(event)
+
+        # Generate and append launch_diff event for each kernel
+        for kernel_hash, data in kernels_by_hash.items():
+            compilation_event = data["compilation"]
+            launches = data["launches"]
+
+            if compilation_event and launches:
+                sames, diffs = _generate_launch_diff(launches)
+                launch_diff_event = {
+                    "event_type": "launch_diff",
+                    "hash": kernel_hash,
+                    "name": compilation_event.get("payload", {}).get("metadata", {}).get("name"),
+                    "total_launches": len(launches),
+                    "diffs": diffs,
+                    "sames": sames,
+                }
+                # Append the new event to the list of lines for the current output file
+                outputs[output_file].append(json.dumps(launch_diff_event, separators=(",", ":")) + "\n")
+
+    # Final write to files
+    for output_file, final_lines in outputs.items():
+        with open(output_file, "w") as out:
+            out.writelines(final_lines)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -682,6 +723,91 @@ def parse_args():
         help="Output NDJSON path. If it is None, the default output file name will be set to {input}_mapped.ndjson in the parse function.",
     )
     return parser.parse_args()
+
+
+# Fields that are expected to vary but are not useful to list out in the diff.
+SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr"]
+
+
+def _flatten_dict(d: Dict[str, Any], parent_key: str = "", sep: str = ".") -> Dict[str, Any]:
+    """
+    Flattens a nested dictionary.
+    """
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def _unflatten_dict(d: Dict[str, Any], sep: str = ".") -> Dict[str, Any]:
+    """
+    Unflattens a dictionary with delimited keys.
+    """
+    result = {}
+    for key, value in d.items():
+        parts = key.split(sep)
+        d_ref = result
+        for part in parts[:-1]:
+            if part not in d_ref:
+                d_ref[part] = {}
+            d_ref = d_ref[part]
+        d_ref[parts[-1]] = value
+    return result
+
+
+def _generate_launch_diff(launches: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """
+    Compares a list of launch events and returns dictionaries of same and different fields.
+    """
+    if not launches:
+        return {}, {}
+
+    # Use the first launch as the base for comparison
+    base_launch_flat = _flatten_dict(launches[0])
+    sames = copy.deepcopy(base_launch_flat)
+    diffs = defaultdict(lambda: defaultdict(list))
+
+    for i, launch in enumerate(launches):
+        launch_flat = _flatten_dict(launch)
+        for key, value in launch_flat.items():
+            if key not in sames:
+                # This key is already known to be different
+                # Check if the value is new
+                if value not in [v["value"] for v in diffs[key]["values"]]:
+                    diffs[key]["values"].append({"value": value, "first_occurrence_index": i})
+                continue
+
+            if sames[key] != value:
+                # A field that was the same until now is different
+                base_value = sames.pop(key)
+                diffs[key]["values"].append({"value": base_value, "first_occurrence_index": 0})
+                diffs[key]["values"].append({"value": value, "first_occurrence_index": i})
+
+    # Finalize the structure of diffs
+    final_diffs = {}
+    for key, data in diffs.items():
+        is_summary = any(summary_key in key for summary_key in SUMMARY_FIELDS)
+        unique_values = data["values"]
+        if is_summary:
+            final_diffs[key] = {
+                "type": "summary",
+                "unique_count": len(unique_values),
+                "summary_text": f"Varies across {len(unique_values)} unique values",
+            }
+        else:
+            final_diffs[key] = {
+                "type": "values_list",
+                "values": unique_values,
+            }
+
+    # Unflatten the sames dictionary to restore its original structure
+    sames_unflattened = _unflatten_dict(sames)
+
+    return sames_unflattened, final_diffs
 
 
 if __name__ == "__main__":
