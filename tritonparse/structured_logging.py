@@ -156,6 +156,9 @@ def convert(obj):
 
     # 2. simple containers ----------------------------------------------------
     if isinstance(obj, (list, tuple)):
+        # Handle namedtuple specially to preserve field names
+        if hasattr(obj, "_asdict"):
+            return convert(obj._asdict())
         return [convert(x) for x in obj]
 
     if isinstance(obj, (set, frozenset)):
@@ -810,7 +813,7 @@ def extract_arg_info(arg_dict):
 def add_launch_metadata(grid, metadata, arg_dict):
     # Extract detailed argument information
     extracted_args = extract_arg_info(arg_dict)
-    return {"launch_metadata_tritonparse": (grid, metadata, extracted_args)}
+    return {"launch_metadata_tritonparse": (grid, metadata._asdict(), extracted_args)}
 
 
 class JITHookImpl(JITHook):
@@ -928,7 +931,7 @@ class LaunchHookImpl(LaunchHook):
         )
         if launch_metadata_tritonparse is not None:
             trace_data["grid"] = launch_metadata_tritonparse[0]
-            trace_data["metadata"] = launch_metadata_tritonparse[1]
+            trace_data["compilation_metadata"] = launch_metadata_tritonparse[1]
             trace_data["extracted_args"] = launch_metadata_tritonparse[
                 2
             ]  # Now contains detailed arg info
