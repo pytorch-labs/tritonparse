@@ -57,6 +57,7 @@ parsed_output/
 !tests/example_output/logs/**
 !tests/example_output/parsed_output/**
 !tests/example_output/parsed_output_complex/**
+!website/public/**
 .tox/
 .nox/
 .hypothesis/
