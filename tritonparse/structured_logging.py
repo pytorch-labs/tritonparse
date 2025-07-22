@@ -1009,6 +1009,9 @@ def clear_logging_config():
     This function resets the logging handlers, global state variables,
     and Triton knobs to their default states, effectively disabling
     the custom tracing.
+
+    WARNING: This function is not supposed to be called unless you are sure
+    you want to clear the logging config.
     """
     global TRITON_TRACE_HANDLER, triton_trace_folder, _KERNEL_ALLOWLIST_PATTERNS
     global _trace_launch_enabled
