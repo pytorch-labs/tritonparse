@@ -941,12 +941,12 @@ class LaunchHookImpl(LaunchHook):
 def maybe_enable_trace_launch():
     global _trace_launch_enabled
     if TRITON_TRACE_LAUNCH and not _trace_launch_enabled:
-        import triton
+        from triton import knobs
 
         launch_hook = LaunchHookImpl()
         jit_hook = JITHookImpl()
-        triton.knobs.runtime.jit_post_compile_hook = jit_hook
-        triton.knobs.runtime.launch_enter_hook = launch_hook
+        knobs.runtime.jit_post_compile_hook = jit_hook
+        knobs.runtime.launch_enter_hook = launch_hook
 
         _trace_launch_enabled = True
 
@@ -964,7 +964,7 @@ def init_basic(trace_folder: Optional[str] = None):
     maybe_enable_debug_logging()
     if triton_trace_folder is not None and trace_folder is not None:
         log.info(
-            "Conflict settings: TRITON_TRACE is already set to %s, we will use provided trace_folder(%s) instead.",
+            "Conflict settings: triton_trace_folder is already set to %s, we will use provided trace_folder(%s) instead.",
             triton_trace_folder,
             trace_folder,
         )
@@ -995,7 +995,40 @@ def init(trace_folder: Optional[str] = None, enable_trace_launch: bool = False):
     global TRITON_TRACE_LAUNCH
     if enable_trace_launch:
         TRITON_TRACE_LAUNCH = True
-    import triton
 
     init_basic(trace_folder)
-    triton.knobs.compilation.listener = maybe_trace_triton
+    from triton import knobs
+
+    knobs.compilation.listener = maybe_trace_triton
+
+
+def clear_logging_config():
+    """
+    Clear all configurations made by init() and init_basic().
+
+    This function resets the logging handlers, global state variables,
+    and Triton knobs to their default states, effectively disabling
+    the custom tracing.
+    """
+    global TRITON_TRACE_HANDLER, triton_trace_folder, _KERNEL_ALLOWLIST_PATTERNS
+    global _trace_launch_enabled
+
+    # 1. Clean up the log handler
+    if TRITON_TRACE_HANDLER is not None:
+        if TRITON_TRACE_HANDLER in triton_trace_log.handlers:
+            triton_trace_log.removeHandler(TRITON_TRACE_HANDLER)
+        TRITON_TRACE_HANDLER.close()
+        TRITON_TRACE_HANDLER = None
+
+    # 2. Reset global state variables
+    triton_trace_folder = None
+    _KERNEL_ALLOWLIST_PATTERNS = None
+    _trace_launch_enabled = False
+
+    # 3. Reset Triton knobs
+    # Check if triton was actually imported and used
+    from triton import knobs
+
+    knobs.compilation.listener = None
+    knobs.runtime.jit_post_compile_hook = None
+    knobs.runtime.launch_enter_hook = None
