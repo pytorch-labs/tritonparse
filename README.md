@@ -5,14 +5,15 @@
 
 **A comprehensive visualization and analysis tool for Triton IR files** — helping developers analyze, debug, and understand Triton kernel compilation processes.
 
-🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.io%2Ftritonparse%2Ff0_fc0_a0_cai-.ndjson)**
+🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.io%2Fdedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
 
 ## ✨ Key Features
 
+- **🚀 Launch Difference Analysis** - Automatically detect and visualize variations in kernel launch parameters, helping you pinpoint performance bottlenecks and debug launch configurations.
 - **🔍 Interactive Visualization** - Explore Triton kernels with detailed metadata and stack traces
 - **📊 Multi-format IR Support** - View TTGIR, TTIR, LLIR, PTX, and AMDGCN in one place
 - **🔄 Side-by-side Comparison** - Compare IR stages with synchronized highlighting
-- **📝 Structured Logging** - Capture detailed compilation events with source mapping
+- **📝 Structured Logging** - Capture detailed compilation and launch events with source mapping
 - **🌐 Ready-to-use Interface** - No installation required, works in your browser
 - **🔒 Privacy-first** - All processing happens locally in your browser, no data uploaded
 
@@ -23,8 +24,8 @@
 ```python
 import tritonparse.structured_logging
 
-# Initialize logging
-tritonparse.structured_logging.init("./logs/")
+# Initialize logging with launch tracing enabled
+tritonparse.structured_logging.init("./logs/", enable_trace_launch=True)
 
 # Your Triton/PyTorch code here
 # ... your kernels ...
@@ -55,7 +56,8 @@ INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/t
 
 ### 2. Visualize Results
 
-**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.io%2Ftritonparse%2Ff0_fc0_a0_cai-.ndjson)** and open your local trace files (.ndjson.gz format).
+**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.
+io%2Ftritonparse%dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
 
 > **🔒 Privacy Note**: Your trace files are processed entirely in your browser - nothing is uploaded to any server! 
 
