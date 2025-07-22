@@ -75,6 +75,124 @@ export interface KernelMetadata {
 }
 
 /**
+ * Launch range information
+ */
+export interface LaunchRange {
+    start: number;
+    end: number;
+}
+
+/**
+ * Distribution value with count and launch information
+ */
+export interface DistributionValue<T = any> {
+    value: T;
+    count: number;
+    launches: LaunchRange[];
+}
+
+/**
+ * Different types of diff structures
+ */
+export interface SummaryDiff {
+    diff_type: "summary";
+    summary_text: string;
+}
+
+export interface DistributionDiff<T = any> {
+    diff_type: "distribution";
+    values: DistributionValue<T>[];
+}
+
+export interface ArgumentDiff {
+    diff_type: "argument_diff";
+    sames?: Record<string, any>;
+    diffs?: Record<string, SummaryDiff | DistributionDiff>;
+}
+
+/**
+ * Union type for all diff types
+ */
+export type DiffData = SummaryDiff | DistributionDiff | ArgumentDiff;
+
+/**
+ * Launch diff data structure
+ */
+export interface LaunchDiffData {
+    function?: DiffData;
+    stack?: DiffData;
+    extracted_args?: Record<string, ArgumentDiff>;
+    [key: string]: DiffData | Record<string, ArgumentDiff> | undefined;
+}
+
+/**
+ * Compilation metadata for launch events
+ */
+export interface CompilationMetadata {
+    allowed_dot_input_precisions?: string[];
+    arch?: string;
+    backend_name?: string;
+    cluster_dims?: number[];
+    debug?: boolean;
+    default_dot_input_precision?: string;
+    deprecated_fp8_dot_operand_dtypes?: string[];
+    enable_fp_fusion?: boolean;
+    extern_libs?: [string, string][];
+    global_scratch_align?: number;
+    global_scratch_size?: number;
+    hash?: string;
+    ir_override?: any;
+    launch_cooperative_grid?: boolean;
+    launch_pdl?: boolean;
+    max_num_imprecise_acc_default?: number;
+    maxnreg?: number | null;
+    name?: string;
+    num_ctas?: number;
+    num_stages?: number;
+    num_warps?: number;
+    ptx_options?: any;
+    ptx_version?: number | null;
+    sanitize_overflow?: boolean;
+    shared?: number;
+    supported_fp8_dtypes?: string[];
+    target?: {
+        backend?: string;
+        arch?: number;
+        warp_size?: number;
+    };
+    tensordesc_meta?: any[];
+    tmem_size?: number;
+    triton_version?: string;
+    warp_size?: number;
+    [key: string]: any; // Allow additional unknown fields
+}
+
+/**
+ * Extracted argument information
+ */
+export interface ExtractedArg {
+    type: string;
+    value?: any;
+    length?: number;
+    [key: string]: any; // Allow additional unknown fields
+}
+
+/**
+ * Launch sames data structure
+ */
+export interface LaunchSamesData {
+    event_type?: string;
+    pid?: number;
+    name?: string;
+    stream?: number;
+    grid?: number[];
+    compilation_metadata?: CompilationMetadata;
+    timestamp?: string;
+    extracted_args?: Record<string, ExtractedArg>;
+    [key: string]: any;
+}
+
+/**
  * Python source code information
  */
 export interface PythonSourceCodeInfo {
@@ -99,6 +217,13 @@ export interface LogEntry {
         source_mappings?: Record<string, Record<string, SourceMapping>>; // Alternative field name for source_mapping
         python_source?: PythonSourceCodeInfo;
     };
+    // Fields for launch_diff event type
+    hash?: string;
+    name?: string;
+    total_launches?: number;
+    launch_index_map?: LaunchRange[];
+    diffs?: LaunchDiffData;
+    sames?: LaunchSamesData;
 }
 
 /**
@@ -113,6 +238,7 @@ export interface ProcessedKernel {
     sourceMappings?: Record<string, Record<string, SourceMapping>>; // Source mappings for each IR file
     pythonSourceInfo?: PythonSourceCodeInfo; // Python source code information
     metadata?: KernelMetadata; // Compilation metadata
+    launchDiff?: LogEntry; // Aggregated launch event differences
 }
 
 /**
@@ -121,6 +247,7 @@ export interface ProcessedKernel {
  * @returns Array of LogEntry objects
  */
 export function parseLogData(textData: string): LogEntry[] {
+    console.log("Starting to parse NDJSON data...");
     if (typeof textData !== 'string') {
         throw new Error("Input must be a string in NDJSON format");
     }
@@ -131,7 +258,7 @@ export function parseLogData(textData: string): LogEntry[] {
 
         for (const line of lines) {
             try {
-                const parsedLine = JSON.parse(line);
+                const parsedLine: LogEntry = JSON.parse(line);
                 if (parsedLine && typeof parsedLine === 'object') {
                     entries.push(parsedLine);
                 }
@@ -142,9 +269,11 @@ export function parseLogData(textData: string): LogEntry[] {
         }
 
         if (entries.length === 0) {
+            console.error("No valid JSON entries found in NDJSON data");
             throw new Error("No valid JSON entries found in NDJSON data");
         }
 
+        console.log(`Successfully parsed ${entries.length} log entries.`);
         return entries;
     } catch (error) {
         console.error("Error parsing NDJSON data:", error);
@@ -274,23 +403,23 @@ export function loadLogDataFromFile(file: File): Promise<LogEntry[]> {
  * @returns Array of processed kernel objects ready for display
  */
 export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
-    const kernels: ProcessedKernel[] = [];
-    for (let i = 0; i < logEntries.length; i++) {
-        const entry = logEntries[i];
-        // Check for kernel events by event_type
+    const kernelsByHash: Map<string, ProcessedKernel> = new Map();
+
+    // First pass: process all compilation events
+    for (const entry of logEntries) {
         if (entry.event_type === "compilation" && entry.payload) {
-            // Ensure payload has file_path and file_content
-            if (!entry.payload.file_path || !entry.payload.file_content) {
-                console.warn(
-                    "Kernel event missing file_path or file_content",
-                    entry.payload
-                );
+            const hash = entry.payload.metadata?.hash;
+            if (!hash) {
+                console.warn("Compilation event missing hash", entry);
                 continue;
             }
-            // Extract kernel name from IR filename
+
+            if (!entry.payload.file_path || !entry.payload.file_content) {
+                continue;
+            }
+
             const irFileNames = Object.keys(entry.payload.file_path);
             let kernelName = "unknown_kernel";
-            // Use first IR file name to determine kernel name
             if (irFileNames.length > 0) {
                 const fileName = irFileNames[0];
                 const nameParts = fileName.split(".");
@@ -300,19 +429,9 @@ export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
                         : fileName;
             }
 
-            // Extract source mapping information from payload if available
-            let sourceMappings: Record<
-                string,
-                Record<string, SourceMapping>
-            > = {};
+            const sourceMappings = entry.payload.source_mappings || {};
 
-            if (entry.payload.source_mappings) {
-                // Use source mappings from the trace file
-                sourceMappings = entry.payload.source_mappings;
-            }
-
-            // Create processed kernel object and add to results
-            kernels.push({
+            const newKernel: ProcessedKernel = {
                 name: kernelName,
                 sourceFiles: entry.stack?.map(entry =>
                     typeof entry.filename === 'string' ? entry.filename :
@@ -324,9 +443,24 @@ export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
                 sourceMappings,
                 pythonSourceInfo: entry.payload.python_source,
                 metadata: entry.payload.metadata,
-            });
-
+            };
+            kernelsByHash.set(hash, newKernel);
         }
     }
-    return kernels;
+
+    // Second pass: attach launch_diff events
+    for (const entry of logEntries) {
+        if (entry.event_type === "launch_diff") { // No payload for launch_diff
+            const hash = entry.hash;
+            if (hash && kernelsByHash.has(hash)) {
+                const kernel = kernelsByHash.get(hash)!;
+                kernel.launchDiff = entry; // Attach the entire event object
+            } else {
+                console.warn(`Could not find matching kernel for launch_diff hash: ${hash}`);
+            }
+        }
+    }
+
+    const finalKernels = Array.from(kernelsByHash.values());
+    return finalKernels;
 }
