@@ -50,9 +50,13 @@ MANIFEST
 .coverage
 htmlcov/
 parsed_output/
+*.ndjson
+*.ndjson.gz
+*.json
 !tests/example_output/
-!tests/example_output/parsed_output/
-!tests/example_output/logs/
+!tests/example_output/logs/**
+!tests/example_output/parsed_output/**
+!tests/example_output/parsed_output_complex/**
 .tox/
 .nox/
 .hypothesis/
@@ -62,5 +66,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
 
 # end
