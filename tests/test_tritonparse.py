@@ -164,6 +164,7 @@ class TestTritonparseCUDA(unittest.TestCase):
         torch.cuda.synchronize()
         assert "python_source" in trace_data
         assert "file_path" in trace_data["python_source"]
+        triton.knobs.compilation.listener = None
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_whole_workflow(self):
@@ -221,45 +222,6 @@ class TestTritonparseCUDA(unittest.TestCase):
             "Expected log files to be generated during Triton compilation."
         )
         print(f"Found {len(log_files)} log files in {temp_dir_logs}: {log_files}")
-
-        def parse_log_line(line: str, line_num: int) -> dict | None:
-            """Parse a single log line and extract event data"""
-            try:
-                return json.loads(line.strip())
-            except json.JSONDecodeError as e:
-                print(f"  Line {line_num}: JSON decode error - {e}")
-                return None
-
-        def process_event_data(
-            event_data: dict, line_num: int, event_counts: dict
-        ) -> None:
-            """Process event data and update counts"""
-            try:
-                event_type = event_data.get("event_type")
-                if event_type is None:
-                    return
-
-                if event_type in event_counts:
-                    event_counts[event_type] += 1
-                    print(
-                        f"  Line {line_num}: event_type = '{event_type}' (count: {event_counts[event_type]})"
-                    )
-                else:
-                    print(
-                        f"  Line {line_num}: event_type = '{event_type}' (not tracked)"
-                    )
-            except (KeyError, TypeError) as e:
-                print(f"  Line {line_num}: Data structure error - {e}")
-
-        def count_events_in_file(file_path: str, event_counts: dict) -> None:
-            """Count events in a single log file"""
-            print(f"Checking event types in: {os.path.basename(file_path)}")
-
-            with open(file_path, "r") as f:
-                for line_num, line in enumerate(f, 1):
-                    event_data = parse_log_line(line, line_num)
-                    if event_data:
-                        process_event_data(event_data, line_num, event_counts)
 
         def check_event_type_counts_in_logs(log_dir: str) -> dict:
             """Count 'launch' and unique 'compilation' events in all log files"""
@@ -326,6 +288,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             # Clean up
             shutil.rmtree(temp_dir)
             print("✓ Cleaned up temporary directory")
+            tritonparse.structured_logging.clear_logging_config()
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
     def test_complex_kernels(self):
@@ -628,6 +591,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             # Clean up
             shutil.rmtree(temp_dir)
             print("✓ Cleaned up temporary directory")
+            tritonparse.structured_logging.clear_logging_config()
 
 
 if __name__ == "__main__":
