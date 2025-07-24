@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import { useState, useEffect } from "react";
 import "./App.css";
 import {

@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 // This script creates a standalone HTML file by inlining all external resources (scripts, styles, images, fonts)
 // into a single self-contained HTML file, and also generates a compressed gzipped version of it.
 // This is useful for deploying the website as a single file when the hosting service doesn't support serving static files.

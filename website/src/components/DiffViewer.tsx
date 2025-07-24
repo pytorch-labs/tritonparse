@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import ArgumentViewer from "./ArgumentViewer";
 import React from "react";
 import StackDiffViewer from "./StackDiffViewer";

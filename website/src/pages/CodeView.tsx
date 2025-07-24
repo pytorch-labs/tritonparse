@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import React, { useState, useEffect } from "react";
 import { ProcessedKernel, getIRType } from "../utils/dataLoader";
 import CodeComparisonView from "../components/CodeComparisonView";

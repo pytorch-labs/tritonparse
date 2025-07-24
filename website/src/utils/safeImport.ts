@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 /**
  * Safe dynamic import utility that handles missing modules gracefully
  * This avoids build-time module resolution issues for OSS/internal builds

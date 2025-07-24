@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import React, { useState } from "react";
 import CodeViewer from "./CodeViewer";
 import { IRFile } from "../utils/dataLoader";

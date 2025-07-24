@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 /**
  * Utility to detect if the fb directory exists
  * This checks for the existence of the internal_utils file in the fb directory

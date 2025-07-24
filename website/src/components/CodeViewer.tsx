@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import {

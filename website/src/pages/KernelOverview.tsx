@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import React, { useState, useRef, useLayoutEffect, useCallback } from "react";
 import ArgumentViewer from "../components/ArgumentViewer";
 import DiffViewer from "../components/DiffViewer";

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 /**
  * Source mapping information that connects lines in IR code to source code
  */

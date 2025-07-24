@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ */
+
 import React, { useState } from 'react';
 
 // Renders the value distribution (e.g., "16 (2 times, in launches: 1-2)")
