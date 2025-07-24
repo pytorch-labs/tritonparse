@@ -5,7 +5,7 @@
 
 **A comprehensive visualization and analysis tool for Triton IR files** — helping developers analyze, debug, and understand Triton kernel compilation processes.
 
-🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.io%2Fdedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
+🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/?json_url=https://pytorch-labs.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
 
 ## ✨ Key Features
 
@@ -35,7 +35,7 @@ import tritonparse.utils
 tritonparse.utils.unified_parse("./logs/")
 ```
 The example terminal output is:
-```bash                      
+```bash
 tritonparse log file list: /tmp/tmp1gan7zky/log_file_list.json
 INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/tritonparse/tests/parsed_output
 
@@ -56,10 +56,9 @@ INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/t
 
 ### 2. Visualize Results
 
-**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/?json_url=https%3A%2F%2Fpytorch-labs.github.
-io%2Ftritonparse%dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
+**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/?json_url=https://pytorch-labs.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
 
-> **🔒 Privacy Note**: Your trace files are processed entirely in your browser - nothing is uploaded to any server! 
+> **🔒 Privacy Note**: Your trace files are processed entirely in your browser - nothing is uploaded to any server!
 
 ## 🛠️ Installation
 
@@ -101,7 +100,7 @@ Each stage can be inspected and compared to understand optimization transformati
 
 We welcome contributions! Please see our **[Developer Guide](https://github.com/pytorch-labs/tritonparse/wiki/04.-Developer-Guide)** for:
 - Development setup
-- Code formatting standards  
+- Code formatting standards
 - Pull request process
 - Architecture overview
 
