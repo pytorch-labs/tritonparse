@@ -1,3 +1,5 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+
 """
 Simple Triton kernel for tensor addition. This file is not included in unit tests.
 

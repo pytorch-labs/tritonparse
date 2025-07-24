@@ -1,3 +1,5 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+
 """
 Comprehensive tests for tritonparse using unittest.
 Test Plan:

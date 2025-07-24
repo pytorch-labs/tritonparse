@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+
 """
 Simple tensor loading utility for tritonparse saved tensors.
 Usage:
@@ -14,7 +16,7 @@ import torch
 
 def load_tensor(tensor_file_path: str, device: str = None) -> torch.Tensor:
     """
-    Load a tensor from its file path and verify its integrity using the hash in the filename.
+    Load a tensor and verify its integrity using a hash in the filename.
 
     Args:
         tensor_file_path (str): Direct path to the tensor .bin file. The filename should be
