@@ -1,11 +1,20 @@
 import React from "react";
 
+/**
+ * Props for the ToggleSwitch component.
+ */
 interface ToggleSwitchProps {
+  /** Whether the switch is currently checked (on). */
   isChecked: boolean;
+  /** Callback function that is called when the switch state changes. */
   onChange: (isChecked: boolean) => void;
+  /** Optional label to display next to the switch. */
   label?: string;
 }
 
+/**
+ * A reusable toggle switch component with a label.
+ */
 const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
   isChecked,
   onChange,

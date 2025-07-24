@@ -5,9 +5,13 @@ import { ProcessedKernel } from "../utils/dataLoader";
 import ToggleSwitch from "../components/ToggleSwitch";
 
 interface KernelOverviewProps {
+  /** A list of all processed kernels available for viewing. */
   kernels: ProcessedKernel[];
+  /** The index of the currently selected kernel. */
   selectedKernel: number;
+  /** Callback function to handle kernel selection. */
   onSelectKernel: (index: number) => void;
+  /** Callback function to handle viewing an IR file. */
   onViewIR: (irType: string) => void;
 }
 
@@ -75,16 +79,25 @@ const getSourceFilePath = (entry: any): string => {
   return "Invalid filename format";
 };
 
+/**
+ * The main component for displaying an overview of Triton kernels.
+ * It includes a kernel selector, metadata display, launch analysis, and IR file links.
+ */
 const KernelOverview: React.FC<KernelOverviewProps> = ({
   kernels,
   selectedKernel,
   onSelectKernel,
   onViewIR,
 }) => {
+  // State for controlling the sticky and collapsed behavior of the kernel selector
   const [isSticky, setIsSticky] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(true);
   const buttonsContainerRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Adjusts the scroll position of the kernel buttons container to ensure
+   * the selected kernel's row is visible when the header is sticky and collapsed.
+   */
   const adjustScroll = useCallback(() => {
     if (isSticky && isCollapsed && buttonsContainerRef.current) {
       const container = buttonsContainerRef.current;
@@ -99,6 +112,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
     }
   }, [isSticky, isCollapsed, selectedKernel]);
 
+  // Effect to adjust scroll on state changes and listen for window resizing
   useLayoutEffect(() => {
     adjustScroll();
 
