@@ -23,7 +23,7 @@ python -m pip install --upgrade pip
 
 # Install project in editable mode with test dependencies
 echo "Installing tritonparse in editable mode..."
-pip install -e ".[test]"
+TRITON_BUILD_WITH_CLANG_LLD=true pip install -e ".[test]"
 
 # Verify installation
 echo "Verifying installation..."

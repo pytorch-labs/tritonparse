@@ -2,7 +2,7 @@ name: Tests
 
 on:
     push:
-        branches: [main, develop]
+        branches: [main, develop, findhao/speed_ci]
         paths-ignore:
             - "website/**"
             - "docs/**"

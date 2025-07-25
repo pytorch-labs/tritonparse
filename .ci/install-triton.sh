@@ -23,6 +23,7 @@ TRITON_COMMIT=${TRITON_COMMIT:-"main"}
 echo "🎯 Target Triton commit/branch: $TRITON_COMMIT"
 TRITON_CACHE_DIR="/tmp/triton-cache"
 TRITON_SOURCE_DIR="/tmp/triton"
+TRITON_HOME=$TRITON_CACHE_DIR
 
 # Check disk space (need at least 10GB for Triton compilation)
 AVAILABLE_SPACE=$(df /tmp | tail -1 | awk '{print $4}')
