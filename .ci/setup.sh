@@ -49,7 +49,22 @@ if [ "$NEED_SOURCE_UPDATE" = "true" ]; then
 else
     echo "🔄 Updating package lists..."
 fi
-sudo apt-get update
+
+# Retry apt-get update to handle transient network issues
+for i in {1..5}; do
+    echo "Attempt $i/5: sudo apt-get update"
+    if sudo apt-get update; then
+        echo "✅ apt-get update successful"
+        break
+    fi
+    if [ $i -lt 5 ]; then
+        echo "⚠️ apt-get update failed. Retrying in 15 seconds..."
+        sleep 15
+    else
+        echo "❌ apt-get update failed after 5 attempts."
+        exit 1
+    fi
+done
 
 # Install clang and clangd first
 echo "Installing clang and clangd..."
