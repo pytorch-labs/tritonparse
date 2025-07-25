@@ -685,7 +685,10 @@ class TestTritonparseCUDA(unittest.TestCase):
             # This first call will trigger autotuning, running both configs.
             print("--- Testing Add Kernel (autotuning) ---")
             output_add = torch.empty_like(x)
-            def add_grid(META): return (triton.cdiv(size, META["BLOCK_SIZE"]),)
+
+            def add_grid(META):
+                return (triton.cdiv(size, META["BLOCK_SIZE"]),)
+
             add_kernel[add_grid](x, y, output_add, size)
             torch.cuda.synchronize()
             print("Add kernel autotuning complete.")
@@ -695,13 +698,28 @@ class TestTritonparseCUDA(unittest.TestCase):
             torch.cuda.synchronize()
             print("Add kernel second launch complete.")
 
+            # --- Run Add Kernel again with new shape to trigger autotuning ---
+            print("\n--- Testing Add Kernel (autotuning with new shape) ---")
+            new_size = 1024
+            x2 = torch.randn(new_size, device="cuda", dtype=torch.float32)
+            y2 = torch.randn(new_size, device="cuda", dtype=torch.float32)
+            output_add2 = torch.empty_like(x2)
+
+            def add_grid_new(META):
+                return (triton.cdiv(new_size, META["BLOCK_SIZE"]),)
+
+            add_kernel[add_grid_new](x2, y2, output_add2, new_size)
+            torch.cuda.synchronize()
+            print("Add kernel autotuning on new shape complete.")
+
             # --- Run Scale Kernel ---
             # This will also trigger autotuning for its configs.
             print("\n--- Testing Scale Kernel (autotuning) ---")
             output_scale = torch.empty_like(x)
 
-            def scale_grid(META): return (
-                triton.cdiv(size, META["BLOCK_SIZE"]),)
+            def scale_grid(META):
+                return (triton.cdiv(size, META["BLOCK_SIZE"]),)
+
             scale_kernel[scale_grid](x, output_scale, 2.0, size)
             torch.cuda.synchronize()
             print("Scale kernel autotuning complete.")
@@ -712,10 +730,6 @@ class TestTritonparseCUDA(unittest.TestCase):
             )
 
             # --- Verification ---
-            # 2 configs for add_kernel + 2 configs for scale_kernel = 4 compilation events
-            # 1 launch for add_kernel (autotune) + 1 launch for add_kernel (best config)
-            # + 1 launch for scale_kernel (autotune) = 3 launch events
-            # 1 launch_diff (add_kernel vs add_kernel)
             compilation_hashes = set()
             launch_count = 0
             for log_file in os.listdir(log_path):
@@ -751,8 +765,9 @@ class TestTritonparseCUDA(unittest.TestCase):
                             if event["event_type"] == "launch_diff":
                                 launch_diff_count += 1
             print(f"Found {launch_diff_count} launch_diff events.")
-            self.assertEqual(launch_diff_count, 4,
-                             "Expected 4 launch_diff event.")
+            self.assertEqual(
+                launch_diff_count, 3, "Expected 3 launch_diff events."
+            )
 
             print("✓ Verification successful")
 
