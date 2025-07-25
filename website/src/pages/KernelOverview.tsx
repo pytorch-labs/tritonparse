@@ -1,12 +1,17 @@
-import React from "react";
+import React, { useState, useRef, useLayoutEffect, useCallback } from "react";
 import ArgumentViewer from "../components/ArgumentViewer";
 import DiffViewer from "../components/DiffViewer";
 import { ProcessedKernel } from "../utils/dataLoader";
+import ToggleSwitch from "../components/ToggleSwitch";
 
 interface KernelOverviewProps {
+  /** A list of all processed kernels available for viewing. */
   kernels: ProcessedKernel[];
+  /** The index of the currently selected kernel. */
   selectedKernel: number;
+  /** Callback function to handle kernel selection. */
   onSelectKernel: (index: number) => void;
+  /** Callback function to handle viewing an IR file. */
   onViewIR: (irType: string) => void;
 }
 
@@ -74,12 +79,49 @@ const getSourceFilePath = (entry: any): string => {
   return "Invalid filename format";
 };
 
+/**
+ * The main component for displaying an overview of Triton kernels.
+ * It includes a kernel selector, metadata display, launch analysis, and IR file links.
+ */
 const KernelOverview: React.FC<KernelOverviewProps> = ({
   kernels,
   selectedKernel,
   onSelectKernel,
   onViewIR,
 }) => {
+  // State for controlling the sticky and collapsed behavior of the kernel selector
+  const [isSticky, setIsSticky] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const buttonsContainerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Adjusts the scroll position of the kernel buttons container to ensure
+   * the selected kernel's row is visible when the header is sticky and collapsed.
+   */
+  const adjustScroll = useCallback(() => {
+    if (isSticky && isCollapsed && buttonsContainerRef.current) {
+      const container = buttonsContainerRef.current;
+      const selectedButton = container.children[selectedKernel] as
+        | HTMLElement
+        | undefined;
+
+      if (selectedButton) {
+        // Scroll the container to bring the selected button's row into view
+        container.scrollTop = selectedButton.offsetTop;
+      }
+    }
+  }, [isSticky, isCollapsed, selectedKernel]);
+
+  // Effect to adjust scroll on state changes and listen for window resizing
+  useLayoutEffect(() => {
+    adjustScroll();
+
+    window.addEventListener("resize", adjustScroll);
+    return () => {
+      window.removeEventListener("resize", adjustScroll);
+    };
+  }, [adjustScroll, kernels]);
+
   if (kernels.length === 0) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -97,15 +139,50 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
       </h1>
 
       {/* Kernel Selection */}
-      <div className="bg-white rounded-lg p-4 mb-4 shadow border border-gray-200">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800">
-          Available Kernels
-        </h2>
-        <div className="flex flex-wrap gap-2">
+      <div
+        className={`bg-white rounded-lg shadow border border-gray-200 transition-all duration-300 mb-4 ${
+          isSticky ? "sticky top-4 z-10 p-2" : "p-4"
+        }`}
+        onMouseEnter={() => isSticky && setIsCollapsed(false)}
+        onMouseLeave={() => isSticky && setIsCollapsed(true)}
+      >
+        <div className={`flex items-center gap-4 ${isSticky ? "mb-2" : "mb-4"}`}>
+          <h2
+            className={`${
+              isSticky ? "text-lg" : "text-xl"
+            } font-semibold text-gray-800`}
+          >
+            Available Kernels
+          </h2>
+          <div className="flex items-center gap-2">
+            <span
+              className={`${
+                isSticky ? "text-xs" : "text-sm"
+              } text-gray-600`}
+            >
+              Sticky Header
+            </span>
+            <ToggleSwitch isChecked={isSticky} onChange={setIsSticky} />
+          </div>
+        </div>
+        <div
+          ref={buttonsContainerRef}
+          className={`flex flex-wrap transition-all duration-300 ${
+            isSticky ? "gap-1" : "gap-2"
+          } ${
+            isSticky && isCollapsed
+              ? "max-h-9 overflow-hidden"
+              : "max-h-96"
+          }`}
+        >
           {kernels.map((k, index) => (
             <button
               key={index}
-              className={`px-4 py-2 text-sm rounded-md transition-colors whitespace-nowrap ${
+              className={`rounded-md transition-colors whitespace-nowrap ${
+                isSticky
+                  ? "px-3 py-1 text-xs"
+                  : "px-4 py-2 text-sm"
+              } ${
                 index === selectedKernel
                   ? "bg-blue-100 border border-blue-300 text-blue-800"
                   : "bg-gray-50 border border-gray-200 hover:bg-blue-50 text-gray-800"
