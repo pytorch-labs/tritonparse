@@ -39,10 +39,10 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Set up Python 3.11
+            - name: Set up Python 3.12
               uses: actions/setup-python@v4
               with:
-                  python-version: "3.11"
+                  python-version: "3.12"
 
             - name: Install development dependencies
               run: |
@@ -63,10 +63,10 @@ jobs:
         steps:
             - uses: actions/checkout@v4
 
-            - name: Set up Python 3.11
+            - name: Set up Python 3.12
               uses: actions/setup-python@v4
               with:
-                  python-version: "3.11"
+                  python-version: "3.12"
 
             - name: Get daily cache timestamp
               id: daily-cache
@@ -88,9 +88,9 @@ jobs:
               uses: actions/cache@v3
               with:
                   path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-3.11-${{ steps.daily-cache.outputs.date }}
+                  key: ${{ runner.os }}-pip-3.12-${{ steps.daily-cache.outputs.date }}
                   restore-keys: |
-                      ${{ runner.os }}-pip-3.11-
+                      ${{ runner.os }}-pip-3.12-
 
             - name: Get Triton latest commit
               id: triton-commit
@@ -132,7 +132,7 @@ jobs:
             - name: Setup environment
               env:
                   CONDA_ENV: tritonparse
-                  PYTHON_VERSION: "3.11"
+                  PYTHON_VERSION: "3.12"
                   CUDA_VERSION: "12.8"
               run: |
                   bash .ci/setup.sh
