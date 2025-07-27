@@ -8,6 +8,72 @@ from .sourcemap_utils import _flatten_dict, _to_ranges, _unflatten_dict
 SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr"]
 
 
+def _generate_autotune_analysis_events(
+    autotune_sessions: Dict[str, List[Dict[str, Any]]],
+    autotune_winners: Dict[str, str],
+    kernels_by_hash: Dict[str, Any],
+) -> Dict[str, List[str]]:
+    """
+    Generates autotune_analysis events from grouped compilation sessions.
+
+    Args:
+        autotune_sessions: Dict mapping session_id to a list of compilation events.
+        autotune_winners: Dict mapping session_id to the winning kernel hash.
+        kernels_by_hash: Dict containing processed kernel data, used to find output files.
+
+    Returns:
+        A dictionary mapping output file paths to a list of autotune_analysis event strings.
+    """
+    output_events = defaultdict(list)
+    for session_id, compilations in autotune_sessions.items():
+        if not compilations:
+            continue
+
+        first_comp = compilations[0]
+        metadata = first_comp.get("payload", {}).get("metadata", {})
+        first_comp_hash = metadata.get("hash")
+        if not first_comp_hash or first_comp_hash not in kernels_by_hash:
+            continue
+        output_file = kernels_by_hash[first_comp_hash].get("output_file")
+        if not output_file:
+            continue
+
+        configs = []
+        compilation_hashes = []
+        for comp in compilations:
+            meta = comp.get("payload", {}).get("metadata", {})
+            compilation_hashes.append(meta.get("hash"))
+            # TODO: the config params should be more complete
+            config_params = {
+                "num_warps": meta.get("num_warps"),
+                "num_stages": meta.get("num_stages"),
+            }
+            # TODO: src_constants don't have too much name info, we should add more info
+            if "src_constants" in meta:
+                config_params.update(meta["src_constants"])
+            configs.append(
+                {"config_params": config_params, "compilation_hash": meta.get("hash")}
+            )
+
+        analysis_event = {
+            "event_type": "autotune_analysis",
+            "session_id": session_id,
+            "name": metadata.get("name"),
+            "selected_hash": autotune_winners.get(session_id),
+            "compilation_hashes": compilation_hashes,
+            "configs": configs,
+            # TODO: do we need those?
+            "common_info": {
+                "stack": first_comp.get("stack"),
+                "python_source": first_comp.get("payload", {}).get("python_source"),
+            },
+        }
+        output_events[output_file].append(
+            json.dumps(analysis_event, separators=(",", ":")) + "\n"
+        )
+    return output_events
+
+
 def _generate_launch_diff(
     launches: List[Tuple[Dict[str, Any], int]],
 ) -> Tuple[Dict[str, Any], Dict[str, Any], List[Dict[str, int]]]:

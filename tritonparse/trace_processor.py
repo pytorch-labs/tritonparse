@@ -5,24 +5,25 @@ import os
 from collections import defaultdict
 from typing import Any, Dict, List
 
-from .event_diff import _generate_launch_diff
-
+from .event_diff import _generate_launch_diff, _generate_autotune_analysis_events
 from .ir_parser import (
     extract_code_locations,
     extract_loc_definitions,
     extract_ptx_amdgcn_mappings,
 )
 from .mapper import create_bidirectional_mapping, create_python_mapping
-from .sourcemap_utils import get_file_extension
+from .sourcemap_utils import get_file_extension, _is_autotune_benchmark_launch, get_autotune_session_id
 
 logger = logging.getLogger("SourceMapping")
+
+
 
 
 def generate_source_mappings(
     ir_content: str, ir_type: str, other_mappings: List[Any] = None
 ) -> Dict[str, Dict[str, Any]]:
     """
-    Generate source mappings from intermediate representation (IR) content to the source file.
+    Generate source mappings from IR content to the source file.
     Example:
     loc definition: Line 39 in ttir: #loc2 = loc("/tmp/torchinductor_yhao/yp/abcdef.py":20:28)
     loc reference: Line 9 in ttir: %0 = tt.get_program_id x : i32 loc(#loc2)
@@ -38,8 +39,10 @@ def generate_source_mappings(
 
     Args:
         ir_content (str): The content of the intermediate representation.
-        ir_type (str): The type of the intermediate representation (e.g., 'ttir').
-        other_mappings (List[Any]): A collection of additional mappings, primarily utilized for PTX mappings since PTX's location annotations reference the file name instead of the complete path.
+        ir_type (str): The type of the IR (e.g., 'ttir').
+        other_mappings (List[Any]): A collection of additional mappings,
+        primarily utilized for PTX mappings since PTX's location annotations
+        reference the file name instead of the complete path.
 
     Returns:
         Dict[str, Dict[str, Any]]: A dictionary mapping line numbers to their corresponding source file,
@@ -216,6 +219,8 @@ def parse_single_file(
     kernels_by_hash = defaultdict(
         lambda: {"compilation": None, "launches": [], "output_file": None}
     )
+    autotune_sessions = defaultdict(list)
+    autotune_winners = {}  # session_id -> winning_hash
 
     output_dir = output_dir or os.path.dirname(file_path)
     is_compressed_input = file_path.endswith(".bin.ndjson")
@@ -253,6 +258,12 @@ def parse_single_file(
                 if not kernel_hash:
                     continue
 
+                # Group autotune compilations by session_id
+                stack = parsed_json.get("stack", [])
+                session_id = get_autotune_session_id(stack)
+                if session_id:
+                    autotune_sessions[session_id].append(parsed_json)
+
                 if split_by_frame_id_and_compile_id:
                     pt_info = payload.get("pt_info", {})
                     frame_id = pt_info.get("frame_id")
@@ -277,9 +288,26 @@ def parse_single_file(
                     kernels_by_hash[kernel_hash]["launches"].append(
                         (parsed_json, i + 1)
                     )
+                # Check if this launch is a winning autotune launch
+                stack = parsed_json.get("stack", [])
+                session_id = get_autotune_session_id(stack)
+                if session_id and not _is_autotune_benchmark_launch(stack):
+                    winning_hash = parsed_json.get(
+                        "compilation_metadata", {}
+                    ).get("hash")
+                    if winning_hash:
+                        autotune_winners[session_id] = winning_hash
 
     # Organize lines for final output, keyed by output file path
     all_output_lines = defaultdict(list)
+
+    # Generate autotune analysis events
+    autotune_events_by_file = _generate_autotune_analysis_events(
+        autotune_sessions, autotune_winners, kernels_by_hash
+    )
+    for output_file, events in autotune_events_by_file.items():
+        all_output_lines[output_file].extend(events)
+
     for _kernel_hash, data in kernels_by_hash.items():
         compilation_json_str = data["compilation"]
         launches_with_indices = data["launches"]
@@ -311,9 +339,11 @@ def parse_single_file(
             launch_diff_event = {
                 "event_type": "launch_diff",
                 "hash": _kernel_hash,
-                "name": compilation_event.get("payload", {})
-                .get("metadata", {})
-                .get("name"),
+                "name": (
+                    compilation_event.get("payload", {})
+                    .get("metadata", {})
+                    .get("name")
+                ),
                 "total_launches": len(launches_with_indices),
                 "launch_index_map": launch_index_map,
                 "diffs": diffs,
