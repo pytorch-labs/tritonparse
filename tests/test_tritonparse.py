@@ -6,6 +6,7 @@ TORCHINDUCTOR_FX_GRAPH_CACHE=0 TRITONPARSE_DEBUG=1 python -m unittest tests.test
 ```
 """
 
+import gzip
 import json
 import os
 import shutil
@@ -14,7 +15,7 @@ import unittest
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Union
-import gzip
+
 import torch
 
 # @manual=//triton:triton
@@ -200,8 +201,7 @@ class TestTritonparseCUDA(unittest.TestCase):
         print(f"Temporary directory: {temp_dir}")
 
         # Initialize logging
-        tritonparse.structured_logging.init(
-            temp_dir_logs, enable_trace_launch=True)
+        tritonparse.structured_logging.init(temp_dir_logs, enable_trace_launch=True)
 
         # Generate test data and run kernels
         torch.manual_seed(0)
@@ -222,8 +222,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             f"No log files found in {temp_dir_logs}. "
             "Expected log files to be generated during Triton compilation."
         )
-        print(
-            f"Found {len(log_files)} log files in {temp_dir_logs}: {log_files}")
+        print(f"Found {len(log_files)} log files in {temp_dir_logs}: {log_files}")
 
         def check_event_type_counts_in_logs(log_dir: str) -> dict:
             """Count 'launch' and unique 'compilation' events in all log files"""
@@ -252,14 +251,12 @@ class TestTritonparseCUDA(unittest.TestCase):
                                         .get("hash")
                                     )
                                     if compilation_hash:
-                                        compilation_hashes.add(
-                                            compilation_hash)
+                                        compilation_hashes.add(compilation_hash)
                                         print(
                                             f"  Line {line_num}: event_type = 'compilation' (unique hash: {compilation_hash[:8]}...)"
                                         )
                             except (json.JSONDecodeError, KeyError, TypeError) as e:
-                                print(
-                                    f"  Line {line_num}: Error processing line - {e}")
+                                print(f"  Line {line_num}: Error processing line - {e}")
 
             # Add the count of unique compilation hashes to the event_counts
             event_counts["compilation"] = len(compilation_hashes)
@@ -287,8 +284,7 @@ class TestTritonparseCUDA(unittest.TestCase):
         try:
             # Verify parsing output
             parsed_files = os.listdir(temp_dir_parsed)
-            assert len(
-                parsed_files) > 0, "No files found in parsed output directory"
+            assert len(parsed_files) > 0, "No files found in parsed output directory"
         finally:
             # Clean up
             shutil.rmtree(temp_dir)
@@ -371,13 +367,10 @@ class TestTritonparseCUDA(unittest.TestCase):
             offs_am = (pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)) % M
             offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
             offs_k = tl.arange(0, BLOCK_SIZE_K)
-            a_ptrs = a + (offs_am[:, None] * stride_am +
-                          offs_k[None, :] * stride_ak)
-            b_ptrs = b + (offs_k[:, None] * stride_bk +
-                          offs_bn[None, :] * stride_bn)
+            a_ptrs = a + (offs_am[:, None] * stride_am + offs_k[None, :] * stride_ak)
+            b_ptrs = b + (offs_k[:, None] * stride_bk + offs_bn[None, :] * stride_bn)
 
-            accumulator = tl.zeros(
-                (BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+            accumulator = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
             for k in range(0, tl.cdiv(K, BLOCK_SIZE_K)):
                 a_block = tl.load(
                     a_ptrs, mask=offs_k[None, :] < K - k * BLOCK_SIZE_K, other=0.0
@@ -392,8 +385,7 @@ class TestTritonparseCUDA(unittest.TestCase):
 
             offs_cm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
             offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-            c_ptrs = c + stride_cm * \
-                offs_cm[:, None] + stride_cn * offs_cn[None, :]
+            c_ptrs = c + stride_cm * offs_cm[:, None] + stride_cn * offs_cn[None, :]
             c_mask = (offs_cm[:, None] < M) & (offs_cn[None, :] < N)
             tl.store(c_ptrs, c_block, mask=c_mask)
 
@@ -557,11 +549,9 @@ class TestTritonparseCUDA(unittest.TestCase):
 
             # Verify we have both json and ndjson.gz files
             json_files = [f for f in parsed_files if f.endswith(".json")]
-            ndjson_gz_files = [
-                f for f in parsed_files if f.endswith(".ndjson.gz")]
+            ndjson_gz_files = [f for f in parsed_files if f.endswith(".ndjson.gz")]
 
-            assert len(
-                json_files) > 0, f"No .json files found in {parsed_output_path}"
+            assert len(json_files) > 0, f"No .json files found in {parsed_output_path}"
             assert (
                 len(ndjson_gz_files) > 0
             ), f"No .ndjson.gz files found in {parsed_output_path}"
@@ -573,8 +563,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             import gzip
 
             for ndjson_gz_file in ndjson_gz_files:
-                ndjson_gz_path = os.path.join(
-                    parsed_output_path, ndjson_gz_file)
+                ndjson_gz_path = os.path.join(parsed_output_path, ndjson_gz_file)
                 launch_diff_count = 0
 
                 print(f"Checking launch_diff events in {ndjson_gz_file}")
@@ -589,11 +578,9 @@ class TestTritonparseCUDA(unittest.TestCase):
                                     f"  Line {line_num}: Found launch_diff event (count: {launch_diff_count})"
                                 )
                         except json.JSONDecodeError as e:
-                            print(
-                                f"  Line {line_num}: JSON decode error - {e}")
+                            print(f"  Line {line_num}: JSON decode error - {e}")
                         except Exception as e:
-                            print(
-                                f"  Line {line_num}: Error processing line - {e}")
+                            print(f"  Line {line_num}: Error processing line - {e}")
 
                 print(f"✓ Total launch_diff events found: {launch_diff_count}")
                 assert (
@@ -744,8 +731,7 @@ class TestTritonparseCUDA(unittest.TestCase):
                             elif event["event_type"] == "launch":
                                 launch_count += 1
 
-            print(
-                f"Found {len(compilation_hashes)} unique compilation hashes.")
+            print(f"Found {len(compilation_hashes)} unique compilation hashes.")
             print(f"Found {launch_count} launch events.")
             self.assertEqual(
                 len(compilation_hashes),
@@ -765,9 +751,7 @@ class TestTritonparseCUDA(unittest.TestCase):
                             if event["event_type"] == "launch_diff":
                                 launch_diff_count += 1
             print(f"Found {launch_diff_count} launch_diff events.")
-            self.assertEqual(
-                launch_diff_count, 3, "Expected 3 launch_diff events."
-            )
+            self.assertEqual(launch_diff_count, 3, "Expected 3 launch_diff events.")
 
             print("✓ Verification successful")
 
