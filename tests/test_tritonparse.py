@@ -751,7 +751,7 @@ class TestTritonparseCUDA(unittest.TestCase):
                             if event["event_type"] == "launch_diff":
                                 launch_diff_count += 1
             print(f"Found {launch_diff_count} launch_diff events.")
-            self.assertEqual(launch_diff_count, 3, "Expected 3 launch_diff events.")
+            self.assertEqual(launch_diff_count, 4, "Expected 4 launch_diff events.")
 
             print("✓ Verification successful")
 
