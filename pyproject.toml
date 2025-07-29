@@ -8,8 +8,13 @@ name = "tritonparse"
 version = "0.1.1"
 dependencies = [
     "triton>3.3.1",
-    "coverage",
 ]
+
+[project.optional-dependencies]
+test = [
+    "coverage>=7.0.0",
+]
+
 requires-python = ">=3.10"
 
 [tool.setuptools.packages.find]
