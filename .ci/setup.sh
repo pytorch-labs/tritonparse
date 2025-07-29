@@ -175,8 +175,9 @@ chmod +x /tmp/install_cuda.sh
 # The install_cudnn function is defined in install_cuda.sh.
 # We source the script and call the function with sudo to install cuDNN.
 # The -E flag preserves the environment variables. The function expects
-# CUDA version (e.g., "12.8") and CUDNN version as arguments.
-sudo -E bash -c "source /tmp/install_cuda.sh && install_cudnn \"${CUDA_VERSION}\" \"${CUDNN_VERSION}\""
+# CUDA major version (e.g., "12") and CUDNN version as arguments.
+CUDA_MAJOR_VERSION="${CUDA_VERSION%%.*}"
+sudo -E bash -c "source /tmp/install_cuda.sh && install_cudnn \"${CUDA_MAJOR_VERSION}\" \"${CUDNN_VERSION}\""
 
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."
