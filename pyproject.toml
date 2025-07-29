@@ -1,3 +1,4 @@
+
 [build-system]
 requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -9,11 +10,6 @@ dependencies = [
     "triton>3.3.1",
 ]
 requires-python = ">=3.10"
-
-[project.optional-dependencies]
-test = [
-    "coverage>=7.0.0",
-]
 
 [tool.setuptools.packages.find]
 include = ["tritonparse*"]
