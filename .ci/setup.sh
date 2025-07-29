@@ -87,14 +87,13 @@ else
     HAS_CORRECT_CUDA=false
 fi
 
-if [ "$HAS_CORRECT_CUDA" = "true" ]; then
-    echo "🔧 Installing development libraries only..."
-    # Install other dev libraries but skip CUDA toolkit
-    sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
-else
-    echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED and development libraries..."
+echo "🔧 Installing development libraries"
+sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
+
+if [ "$HAS_CORRECT_CUDA" != "true" ]; then
+    echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED"
     # Install all packages including CUDA toolkit (this is the big download)
-    sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
+    sudo apt-get install -y cuda-toolkit-12.8
 fi
 
 # Verify clang installation
