@@ -345,20 +345,25 @@ def extract_python_source_info(trace_data: Dict[str, Any], source):
     """
     # @TODO: add support for IRSource
     from triton.compiler import IRSource
+    from triton.runtime.jit import JITFunction
 
     if isinstance(source, IRSource):
         return
-    # Get the original Python source code for the kernel
-    target_fn = source.fn.fn
-    python_source_file = inspect.getfile(target_fn)
-    source_lines, start_line_number = inspect.getsourcelines(target_fn)
-    end_line_number = start_line_number + len(source_lines)
 
+    # Get the original Python source code for the kernel
+    if isinstance(fn := source.fn, JITFunction) and hasattr(fn, "starting_line_number"):
+        start_line_number = fn.starting_line_number
+        source_lines = fn.raw_src
+    else:
+        source_lines, start_line_number = inspect.getsourcelines(fn.fn)
+
+    python_source_file = inspect.getfile(fn.fn)
+    end_line_number = start_line_number + len(source_lines)
     trace_data["python_source"] = {
         "file_path": python_source_file,
         "start_line": start_line_number,
         "end_line": end_line_number,
-        "code": inspect.getsource(target_fn),
+        "code": "".join(source_lines),
     }
 
 
