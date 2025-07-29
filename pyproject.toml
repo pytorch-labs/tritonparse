@@ -15,6 +15,7 @@ test = [
     "coverage>=7.0.0",
 ]
 
+
 [tool.setuptools.packages.find]
 include = ["tritonparse*"]
 

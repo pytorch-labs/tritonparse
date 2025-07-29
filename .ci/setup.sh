@@ -87,14 +87,13 @@ else
     HAS_CORRECT_CUDA=false
 fi
 
-if [ "$HAS_CORRECT_CUDA" = "true" ]; then
-    echo "🔧 Installing development libraries only..."
-    # Install other dev libraries but skip CUDA toolkit
-    sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
-else
-    echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED and development libraries..."
+echo "🔧 Installing development libraries"
+sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
+
+if [ "$HAS_CORRECT_CUDA" != "true" ]; then
+    echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED"
     # Install all packages including CUDA toolkit (this is the big download)
-    sudo apt-get install -y cuda-toolkit-12.8 libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential
+    sudo apt-get install -y cuda-toolkit-12.8
 fi
 
 # Verify clang installation
@@ -170,7 +169,14 @@ echo "Using cuDNN version: $CUDNN_VERSION"
 
 # Install cuDNN using PyTorch's script
 echo "Installing cuDNN using PyTorch's script..."
-curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cudnn.sh | sudo bash
+curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cuda.sh -o /tmp/install_cuda.sh
+chmod +x /tmp/install_cuda.sh
+# The install_cudnn function is defined in install_cuda.sh.
+# We source the script and call the function with sudo to install cuDNN.
+# The -E flag preserves the environment variables. The function expects
+# CUDA major version (e.g., "12") and CUDNN version as arguments.
+CUDA_MAJOR_VERSION="${CUDA_VERSION%%.*}"
+sudo -E bash -c "source /tmp/install_cuda.sh && install_cudnn \"${CUDA_MAJOR_VERSION}\" \"${CUDNN_VERSION}\""
 
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."
