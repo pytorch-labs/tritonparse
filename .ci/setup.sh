@@ -170,7 +170,13 @@ echo "Using cuDNN version: $CUDNN_VERSION"
 
 # Install cuDNN using PyTorch's script
 echo "Installing cuDNN using PyTorch's script..."
-curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cudnn.sh | sudo bash
+curl -s https://raw.githubusercontent.com/pytorch/pytorch/main/.ci/docker/common/install_cuda.sh -o /tmp/install_cuda.sh
+chmod +x /tmp/install_cuda.sh
+# The install_cudnn function is defined in install_cuda.sh.
+# We source the script and call the function with sudo to install cuDNN.
+# The -E flag preserves the environment variables. The function expects
+# CUDA version (e.g., "12.8") and CUDNN version as arguments.
+sudo -E bash -c "source /tmp/install_cuda.sh && install_cudnn \"${CUDA_VERSION}\" \"${CUDNN_VERSION}\""
 
 # Install PyTorch nightly
 echo "Installing PyTorch nightly..."
