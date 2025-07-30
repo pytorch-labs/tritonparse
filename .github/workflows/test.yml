@@ -56,7 +56,7 @@ jobs:
               run: |
                   make lint-check || (echo "❌ Linting failed. Please run 'make format' to fix formatting issues, then commit the changes." && echo "📖 For detailed formatting guide, see: https://github.com/pytorch-labs/tritonparse/wiki/05.-Code-Formatting" && exit 1)
 
-    test:
+    test-from-source:
         runs-on: 4-core-ubuntu-gpu-t4
         timeout-minutes: 120
         steps:
@@ -152,6 +152,61 @@ jobs:
             - name: Run tests
               env:
                   CONDA_ENV: tritonparse
+                  TEST_TYPE: ${{ github.event.inputs.test-type || 'all' }}
+                  COVERAGE: ${{ github.event.inputs.coverage || 'false' }}
+              run: |
+                  bash .ci/run-tests.sh
+
+    test-from-pip:
+        runs-on: 4-core-ubuntu-gpu-t4
+        timeout-minutes: 120
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python 3.11
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.11"
+
+            - name: Get daily cache timestamp
+              id: daily-cache
+              run: |
+                  # Calculate date (e.g., 2024-01-15) for daily cache expiration
+                  DATE_STAMP=$(date +"%Y-%m-%d")
+                  echo "date=$DATE_STAMP" >> $GITHUB_OUTPUT
+                  echo "Using daily cache stamp: $DATE_STAMP"
+
+            - name: Cache pip dependencies
+              uses: actions/cache@v3
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-3.11-${{ steps.daily-cache.outputs.date }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-3.11-
+
+            - name: Setup environment
+              env:
+                  CONDA_ENV: tritonparse-pip
+                  PYTHON_VERSION: "3.11"
+                  CUDA_VERSION: "12.8"
+              run: |
+                  bash .ci/setup.sh
+
+            - name: Install Triton from pip
+              env:
+                  CONDA_ENV: tritonparse-pip
+              run: |
+                  bash .ci/install-triton-pip.sh
+
+            - name: Install project dependencies
+              env:
+                  CONDA_ENV: tritonparse-pip
+              run: |
+                  bash .ci/install-project.sh
+
+            - name: Run tests
+              env:
+                  CONDA_ENV: tritonparse-pip
                   TEST_TYPE: ${{ github.event.inputs.test-type || 'all' }}
                   COVERAGE: ${{ github.event.inputs.coverage || 'false' }}
               run: |

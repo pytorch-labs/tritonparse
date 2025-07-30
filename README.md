@@ -69,9 +69,12 @@ cd tritonparse
 pip install -e .
 ```
 
-**Prerequisites:** Python ≥ 3.10, Triton > 3.3.1 ([install from source](https://github.com/triton-lang/triton)), GPU required (NVIDIA/AMD)
+**Prerequisites:** Python ≥ 3.10, Triton ≥ 3.4.0, GPU required (NVIDIA/AMD)
 
-TritonParse relies on new features in Triton > 3.3.1. Please install Triton from source for now.
+TritonParse relies on new features in Triton. Please install the latest version of Triton:
+```bash
+pip install triton
+```
 
 ## 📚 Complete Documentation
 
