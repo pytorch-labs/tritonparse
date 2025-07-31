@@ -143,7 +143,11 @@ show_elapsed
 
 # Verify Triton installation
 echo "Verifying Triton installation..."
-if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/dev/null; then
+IMPORT_OUTPUT=$(python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>&1)
+IMPORT_EXITCODE=$?
+
+if [ $IMPORT_EXITCODE -eq 0 ]; then
+    echo "$IMPORT_OUTPUT"
     python -c "import triton; print(f'Triton path: {triton.__file__}')"
     echo "✅ Triton installation verified successfully"
 
@@ -155,11 +159,8 @@ if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/
     echo "🎉 Triton installation completed successfully!"
 else
     echo "❌ ERROR: Failed to import triton"
-    echo "This might be due to libstdc++ version issues"
-    echo "Checking system libstdc++ version:"
-    strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX | tail -5 || echo "Could not check system libstdc++"
-    echo "Checking conda libstdc++ version:"
-    strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5 || echo "Could not check conda libstdc++"
+    echo "Import error details:"
+    echo "$IMPORT_OUTPUT"
 
     # Clean up cache on failure to prevent corruption
     echo "🧹 Cleaning up cache due to installation failure..."
