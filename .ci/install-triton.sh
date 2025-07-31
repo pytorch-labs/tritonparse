@@ -146,12 +146,17 @@ echo "Verifying Triton installation..."
 echo "Python path: $(which python)"
 echo "Python version: $(python --version)"
 echo "PYTHONPATH: $PYTHONPATH"
+echo "Testing basic Python functionality..."
+python -c "print('Python works')" || echo "❌ Basic Python test failed"
 echo "Attempting to import triton..."
 
+set +e  # Temporarily disable exit on error
 IMPORT_OUTPUT=$(python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>&1)
 IMPORT_EXITCODE=$?
+set -e  # Re-enable exit on error
 
 echo "Import exit code: $IMPORT_EXITCODE"
+echo "Import output: $IMPORT_OUTPUT"
 
 if [ $IMPORT_EXITCODE -eq 0 ]; then
     echo "$IMPORT_OUTPUT"
