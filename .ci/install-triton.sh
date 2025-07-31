@@ -143,8 +143,15 @@ show_elapsed
 
 # Verify Triton installation
 echo "Verifying Triton installation..."
+echo "Python path: $(which python)"
+echo "Python version: $(python --version)"
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Attempting to import triton..."
+
 IMPORT_OUTPUT=$(python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>&1)
 IMPORT_EXITCODE=$?
+
+echo "Import exit code: $IMPORT_EXITCODE"
 
 if [ $IMPORT_EXITCODE -eq 0 ]; then
     echo "$IMPORT_OUTPUT"
@@ -161,6 +168,17 @@ else
     echo "❌ ERROR: Failed to import triton"
     echo "Import error details:"
     echo "$IMPORT_OUTPUT"
+    echo ""
+    echo "Additional diagnostic information:"
+    echo "Installed packages containing 'triton':"
+    pip list | grep -i triton || echo "No triton packages found"
+    echo ""
+    echo "Python sys.path:"
+    python -c "import sys; print('\n'.join(sys.path))"
+    echo ""
+    echo "Checking if triton directory exists in site-packages:"
+    python -c "import site; print([p for p in site.getsitepackages()])" 2>/dev/null || echo "Could not get site-packages"
+    find $(python -c "import site; print(' '.join(site.getsitepackages()))" 2>/dev/null) -name "*triton*" 2>/dev/null || echo "Could not find triton in site-packages"
 
     # Clean up cache on failure to prevent corruption
     echo "🧹 Cleaning up cache due to installation failure..."
