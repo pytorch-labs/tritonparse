@@ -351,7 +351,11 @@ def extract_python_source_info(trace_data: Dict[str, Any], source):
         return
 
     # Get the original Python source code for the kernel
-    if isinstance(fn := source.fn, JITFunction) and hasattr(fn, "starting_line_number"):
+    if (
+        isinstance(fn := source.fn, JITFunction)
+        and hasattr(fn, "starting_line_number")
+        and hasattr(fn, "raw_src")
+    ):
         start_line_number = fn.starting_line_number
         source_lines = fn.raw_src
     else:
