@@ -72,9 +72,11 @@ fi
 # ImportError: /opt/miniconda3/envs/tritonparse/bin/../lib/libstdc++.so.6:
 # version `GLIBCXX_3.4.30' not found (required by /tmp/triton/python/triton/_C/libtriton.so)
 echo "Updating libstdc++ to match system version..."
-conda install -y -c conda-forge libstdcxx-ng=12.3.0
+# Use the latest version for Ubuntu 22.04 that includes GLIBCXX_3.4.32
+conda install -y -c conda-forge libstdcxx-ng=15.1.0
 # Check if the update was successful
-strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5
+echo "Checking libstdc++ version after update:"
+strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -10
 
 # Uninstall existing pytorch-triton
 echo "Uninstalling existing pytorch-triton..."
