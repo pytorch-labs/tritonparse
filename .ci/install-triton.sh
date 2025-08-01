@@ -72,9 +72,11 @@ fi
 # ImportError: /opt/miniconda3/envs/tritonparse/bin/../lib/libstdc++.so.6:
 # version `GLIBCXX_3.4.30' not found (required by /tmp/triton/python/triton/_C/libtriton.so)
 echo "Updating libstdc++ to match system version..."
-conda install -y -c conda-forge libstdcxx-ng=12.3.0
+# Use the latest version for Ubuntu 22.04 that includes GLIBCXX_3.4.32
+conda install -y -c conda-forge libstdcxx-ng=15.1.0
 # Check if the update was successful
-strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5
+echo "Checking libstdc++ version after update:"
+strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -10
 
 # Uninstall existing pytorch-triton
 echo "Uninstalling existing pytorch-triton..."
@@ -143,7 +145,23 @@ show_elapsed
 
 # Verify Triton installation
 echo "Verifying Triton installation..."
-if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/dev/null; then
+echo "Python path: $(which python)"
+echo "Python version: $(python --version)"
+echo "PYTHONPATH: $PYTHONPATH"
+echo "Testing basic Python functionality..."
+python -c "print('Python works')" || echo "❌ Basic Python test failed"
+echo "Attempting to import triton..."
+
+set +e  # Temporarily disable exit on error
+IMPORT_OUTPUT=$(python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>&1)
+IMPORT_EXITCODE=$?
+set -e  # Re-enable exit on error
+
+echo "Import exit code: $IMPORT_EXITCODE"
+echo "Import output: $IMPORT_OUTPUT"
+
+if [ $IMPORT_EXITCODE -eq 0 ]; then
+    echo "$IMPORT_OUTPUT"
     python -c "import triton; print(f'Triton path: {triton.__file__}')"
     echo "✅ Triton installation verified successfully"
 
@@ -155,11 +173,19 @@ if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/
     echo "🎉 Triton installation completed successfully!"
 else
     echo "❌ ERROR: Failed to import triton"
-    echo "This might be due to libstdc++ version issues"
-    echo "Checking system libstdc++ version:"
-    strings /usr/lib/x86_64-linux-gnu/libstdc++.so.6 | grep GLIBCXX | tail -5 || echo "Could not check system libstdc++"
-    echo "Checking conda libstdc++ version:"
-    strings /opt/miniconda3/envs/tritonparse/lib/libstdc++.so.6 | grep GLIBCXX | tail -5 || echo "Could not check conda libstdc++"
+    echo "Import error details:"
+    echo "$IMPORT_OUTPUT"
+    echo ""
+    echo "Additional diagnostic information:"
+    echo "Installed packages containing 'triton':"
+    pip list | grep -i triton || echo "No triton packages found"
+    echo ""
+    echo "Python sys.path:"
+    python -c "import sys; print('\n'.join(sys.path))"
+    echo ""
+    echo "Checking if triton directory exists in site-packages:"
+    python -c "import site; print([p for p in site.getsitepackages()])" 2>/dev/null || echo "Could not get site-packages"
+    find $(python -c "import site; print(' '.join(site.getsitepackages()))" 2>/dev/null) -name "*triton*" 2>/dev/null || echo "Could not find triton in site-packages"
 
     # Clean up cache on failure to prevent corruption
     echo "🧹 Cleaning up cache due to installation failure..."

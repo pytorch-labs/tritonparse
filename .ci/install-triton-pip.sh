@@ -40,12 +40,28 @@ show_elapsed
 
 # Verify Triton installation
 echo "Verifying Triton installation..."
-if python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>/dev/null; then
+
+set +e  # Temporarily disable exit on error
+IMPORT_OUTPUT=$(python -c "import triton; print(f'Triton version: {triton.__version__}')" 2>&1)
+IMPORT_EXITCODE=$?
+set -e  # Re-enable exit on error
+
+echo "Import exit code: $IMPORT_EXITCODE"
+echo "Import output: $IMPORT_OUTPUT"
+
+if [ $IMPORT_EXITCODE -eq 0 ]; then
+    echo "$IMPORT_OUTPUT"
     python -c "import triton; print(f'Triton path: {triton.__file__}')"
     echo "✅ Triton installation verified successfully"
     show_elapsed
     echo "🎉 Triton installation completed successfully!"
 else
     echo "❌ ERROR: Failed to import Triton"
+    echo "Import error details:"
+    echo "$IMPORT_OUTPUT"
+    echo ""
+    echo "Additional diagnostic information:"
+    echo "Installed packages containing 'triton':"
+    pip list | grep -i triton || echo "No triton packages found"
     exit 1
 fi
