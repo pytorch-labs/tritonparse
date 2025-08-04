@@ -110,7 +110,7 @@ conda init bash || true
 
 # Create conda environment
 echo "Creating conda environment: $CONDA_ENV"
-conda create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y || true
+conda create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y -c conda-forge || true
 
 # Activate conda environment
 source /opt/miniconda3/etc/profile.d/conda.sh
