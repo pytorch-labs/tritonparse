@@ -31,6 +31,11 @@ else
     sudo apt-get install -y clang-19 clangd-19
 fi
 
+# Set clang-19 and clangd-19 as the default
+echo "Setting clang-19 and clangd-19 as default..."
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 100
+sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-19 100
+
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
 
@@ -83,7 +88,6 @@ fi
 
 # Verify clang installation
 echo "Verifying clang installation..."
-ls -l /usr/bin/clang*
 clang --version
 clangd --version
 
