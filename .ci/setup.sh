@@ -44,7 +44,9 @@ INSTALL_CUDA=${INSTALL_CUDA:-"true"}
 NVCC_PATH=$(command -v nvcc)
 if [ -z "$NVCC_PATH" ]; then
     echo "🔍 Searching for nvcc in /usr/local/cuda and /usr/local/cuda-12.8..."
-    ls /usr/local/cuda*
+    echo "--- Debug: Listing potential CUDA directories ---"
+    ls -ld /usr/local/cuda* 2>/dev/null || echo "--- Debug: No /usr/local/cuda* directories found. ---"
+    echo "--- Debug: Finished listing. Continuing script. ---"
     if [ -x "/usr/local/cuda/bin/nvcc" ]; then
         NVCC_PATH="/usr/local/cuda/bin/nvcc"
         echo "Found nvcc at $NVCC_PATH"
@@ -71,9 +73,12 @@ else
     HAS_CORRECT_CUDA=false
 fi
 
+echo "--- Debug: About to install development libraries. ---"
 echo "🔧 Installing development libraries"
 sudo apt-get install -y libstdc++6 libstdc++-13-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
+echo "--- Debug: Finished installing development libraries. ---"
 
+echo "--- Debug: About to check if CUDA needs installation. ---"
 if [ "$HAS_CORRECT_CUDA" != "true" ] && [ "$INSTALL_CUDA" = "true" ]; then
     echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED"
     # Install all packages including CUDA toolkit (this is the big download)
