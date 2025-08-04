@@ -83,6 +83,7 @@ fi
 
 # Verify clang installation
 echo "Verifying clang installation..."
+ls -l /usr/bin/clang*
 clang --version
 clangd --version
 
