@@ -31,11 +31,6 @@ else
     sudo apt-get install -y clang-19 clangd-19
 fi
 
-# Set up clang alternatives
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 100
-sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-19 100
-sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-19 100
-
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
 
