@@ -34,29 +34,23 @@ fi
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
 
-# Turn on execution tracing for this block
-set -x
-
 # Check for specific CUDA 12.8 version
 CUDA_VERSION_REQUIRED="12.8"
 HAS_CORRECT_CUDA=false
 # Allow skipping CUDA installation via environment variable
-INSTALL_CUDA=${INSTALL_CUDA:-"true"}
+INSTALL_CUDA=${INSTALL_CUDA:-true}
 
-# Try to find nvcc in standard paths, not just PATH
-NVCC_PATH=$(command -v nvcc)
-if [ -z "$NVCC_PATH" ]; then
-    echo "🔍 Searching for nvcc in /usr/local/cuda and /usr/local/cuda-12.8..."
-    echo "--- Debug: Listing potential CUDA directories ---"
-    ls -ld /usr/local/cuda* 2>/dev/null || echo "--- Debug: No /usr/local/cuda* directories found. ---"
-    echo "--- Debug: Finished listing. Continuing script. ---"
-    if [ -x "/usr/local/cuda/bin/nvcc" ]; then
-        NVCC_PATH="/usr/local/cuda/bin/nvcc"
-        echo "Found nvcc at $NVCC_PATH"
-    elif [ -x "/usr/local/cuda-12.8/bin/nvcc" ]; then
-        NVCC_PATH="/usr/local/cuda-12.8/bin/nvcc"
-        echo "Found nvcc at $NVCC_PATH"
-    fi
+# Try to find nvcc in a way that is safe for `set -e`
+NVCC_PATH=""
+if command -v nvcc &>/dev/null; then
+    NVCC_PATH=$(command -v nvcc)
+    echo "Found nvcc in PATH: $NVCC_PATH"
+elif [ -x "/usr/local/cuda/bin/nvcc" ]; then
+    NVCC_PATH="/usr/local/cuda/bin/nvcc"
+    echo "Found nvcc at $NVCC_PATH"
+elif [ -x "/usr/local/cuda-12.8/bin/nvcc" ]; then
+    NVCC_PATH="/usr/local/cuda-12.8/bin/nvcc"
+    echo "Found nvcc at $NVCC_PATH"
 fi
 
 if [ -n "$NVCC_PATH" ]; then
@@ -72,19 +66,13 @@ if [ -n "$NVCC_PATH" ]; then
         HAS_CORRECT_CUDA=false
     fi
 else
-    echo "📦 No CUDA toolkit found in PATH or /usr/local/cuda"
+    echo "📦 No CUDA toolkit found in PATH or standard locations"
     HAS_CORRECT_CUDA=false
 fi
 
-# Turn off execution tracing
-set +x
-
-echo "--- Debug: About to install development libraries. ---"
 echo "🔧 Installing development libraries"
 sudo apt-get install -y libstdc++6 libstdc++-13-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
-echo "--- Debug: Finished installing development libraries. ---"
 
-echo "--- Debug: About to check if CUDA needs installation. ---"
 if [ "$HAS_CORRECT_CUDA" != "true" ] && [ "$INSTALL_CUDA" = "true" ]; then
     echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED"
     # Install all packages including CUDA toolkit (this is the big download)
