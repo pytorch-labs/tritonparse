@@ -18,52 +18,23 @@ echo "CUDA_VERSION: $CUDA_VERSION"
 # Install system dependencies
 echo "Installing system dependencies..."
 
-# Set up LLVM 17 APT source with modern GPG key handling
-echo "Setting up LLVM 17 APT source..."
-NEED_SOURCE_UPDATE=false
-
-# Check if LLVM source is already configured
-if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-noble-17.list" ]; then
-    echo "📝 Configuring LLVM APT source..."
-
-    # Download and install GPG key to /usr/share/keyrings
-    curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key |
-        gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
-
-    # Make sure key file is readable by _apt
-    sudo chmod a+r /usr/share/keyrings/llvm-archive-keyring.gpg
-
-    # Write APT source list, explicitly binding keyring file
-    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main" |
-        sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-17.list
-
-    NEED_SOURCE_UPDATE=true
-    echo "✅ LLVM APT source configured"
-else
-    echo "✅ LLVM APT source already configured"
-fi
-
 # Update package lists
-if [ "$NEED_SOURCE_UPDATE" = "true" ]; then
-    echo "🔄 Updating package lists (new source added)..."
-else
-    echo "🔄 Updating package lists..."
-fi
+echo "🔄 Updating package lists..."
 sudo apt-get update
 
 # Install clang and clangd first
 echo "Installing clang and clangd..."
-if command -v clang-17 &>/dev/null && command -v clangd-17 &>/dev/null; then
-    echo "✅ clang-17 and clangd-17 already installed"
+if command -v clang-19 &>/dev/null && command -v clangd-19 &>/dev/null; then
+    echo "✅ clang-19 and clangd-19 already installed"
 else
-    echo "📦 Installing clang-17 and clangd-17..."
-    sudo apt-get install -y clang-17 clangd-17
+    echo "📦 Installing clang-19 and clangd-19 from Ubuntu repositories..."
+    sudo apt-get install -y clang-19 clangd-19
 fi
 
 # Set up clang alternatives
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
-sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
-sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-17 100
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 100
+sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-19 100
+sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-19 100
 
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
