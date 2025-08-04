@@ -34,6 +34,9 @@ fi
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
 
+# Turn on execution tracing for this block
+set -x
+
 # Check for specific CUDA 12.8 version
 CUDA_VERSION_REQUIRED="12.8"
 HAS_CORRECT_CUDA=false
@@ -72,6 +75,9 @@ else
     echo "📦 No CUDA toolkit found in PATH or /usr/local/cuda"
     HAS_CORRECT_CUDA=false
 fi
+
+# Turn off execution tracing
+set +x
 
 echo "--- Debug: About to install development libraries. ---"
 echo "🔧 Installing development libraries"
