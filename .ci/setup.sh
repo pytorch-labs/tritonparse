@@ -23,7 +23,7 @@ echo "Setting up LLVM 17 APT source..."
 NEED_SOURCE_UPDATE=false
 
 # Check if LLVM source is already configured
-if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-jammy-17.list" ]; then
+if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-noble-17.list" ]; then
     echo "📝 Configuring LLVM APT source..."
 
     # Download and install GPG key to /usr/share/keyrings
@@ -34,8 +34,8 @@ if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-jammy-17.list" ]; then
     sudo chmod a+r /usr/share/keyrings/llvm-archive-keyring.gpg
 
     # Write APT source list, explicitly binding keyring file
-    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" |
-        sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
+    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main" |
+        sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-17.list
 
     NEED_SOURCE_UPDATE=true
     echo "✅ LLVM APT source configured"
@@ -71,10 +71,28 @@ echo "Installing CUDA and development libraries..."
 # Check for specific CUDA 12.8 version
 CUDA_VERSION_REQUIRED="12.8"
 HAS_CORRECT_CUDA=false
+# Allow skipping CUDA installation via environment variable
+INSTALL_CUDA=${INSTALL_CUDA:-"true"}
 
-if command -v nvcc &>/dev/null; then
+# Try to find nvcc in standard paths, not just PATH
+NVCC_PATH=$(command -v nvcc)
+if [ -z "$NVCC_PATH" ]; then
+    echo "🔍 Searching for nvcc in /usr/local/cuda and /usr/local/cuda-12.8..."
+    ls /usr/local/cuda*
+    if [ -x "/usr/local/cuda/bin/nvcc" ]; then
+        NVCC_PATH="/usr/local/cuda/bin/nvcc"
+        echo "Found nvcc at $NVCC_PATH"
+    elif [ -x "/usr/local/cuda-12.8/bin/nvcc" ]; then
+        NVCC_PATH="/usr/local/cuda-12.8/bin/nvcc"
+        echo "Found nvcc at $NVCC_PATH"
+    fi
+fi
+
+if [ -n "$NVCC_PATH" ]; then
+    echo "Verifying CUDA version using '$NVCC_PATH -v':"
+    $NVCC_PATH -v
     # Get CUDA version from nvcc
-    INSTALLED_CUDA_VERSION=$(nvcc --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
+    INSTALLED_CUDA_VERSION=$($NVCC_PATH --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
     if [ "$INSTALLED_CUDA_VERSION" = "$CUDA_VERSION_REQUIRED" ]; then
         echo "✅ CUDA $CUDA_VERSION_REQUIRED already installed"
         HAS_CORRECT_CUDA=true
@@ -83,17 +101,19 @@ if command -v nvcc &>/dev/null; then
         HAS_CORRECT_CUDA=false
     fi
 else
-    echo "📦 No CUDA toolkit found"
+    echo "📦 No CUDA toolkit found in PATH or /usr/local/cuda"
     HAS_CORRECT_CUDA=false
 fi
 
 echo "🔧 Installing development libraries"
 sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
 
-if [ "$HAS_CORRECT_CUDA" != "true" ]; then
+if [ "$HAS_CORRECT_CUDA" != "true" ] && [ "$INSTALL_CUDA" = "true" ]; then
     echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED"
     # Install all packages including CUDA toolkit (this is the big download)
     sudo apt-get install -y cuda-toolkit-12.8
+elif [ "$INSTALL_CUDA" != "true" ]; then
+    echo "ℹ️ Skipping CUDA installation because INSTALL_CUDA is not 'true'."
 fi
 
 # Verify clang installation
