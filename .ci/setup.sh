@@ -18,52 +18,24 @@ echo "CUDA_VERSION: $CUDA_VERSION"
 # Install system dependencies
 echo "Installing system dependencies..."
 
-# Set up LLVM 17 APT source with modern GPG key handling
-echo "Setting up LLVM 17 APT source..."
-NEED_SOURCE_UPDATE=false
-
-# Check if LLVM source is already configured
-if [ ! -f "/etc/apt/sources.list.d/llvm-toolchain-jammy-17.list" ]; then
-    echo "📝 Configuring LLVM APT source..."
-
-    # Download and install GPG key to /usr/share/keyrings
-    curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key |
-        gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
-
-    # Make sure key file is readable by _apt
-    sudo chmod a+r /usr/share/keyrings/llvm-archive-keyring.gpg
-
-    # Write APT source list, explicitly binding keyring file
-    echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" |
-        sudo tee /etc/apt/sources.list.d/llvm-toolchain-jammy-17.list
-
-    NEED_SOURCE_UPDATE=true
-    echo "✅ LLVM APT source configured"
-else
-    echo "✅ LLVM APT source already configured"
-fi
-
 # Update package lists
-if [ "$NEED_SOURCE_UPDATE" = "true" ]; then
-    echo "🔄 Updating package lists (new source added)..."
-else
-    echo "🔄 Updating package lists..."
-fi
+echo "🔄 Updating package lists..."
 sudo apt-get update
 
 # Install clang and clangd first
 echo "Installing clang and clangd..."
-if command -v clang-17 &>/dev/null && command -v clangd-17 &>/dev/null; then
-    echo "✅ clang-17 and clangd-17 already installed"
+if command -v clang-19 &>/dev/null && command -v clangd-19 &>/dev/null; then
+    echo "✅ clang-19 and clangd-19 already installed"
 else
-    echo "📦 Installing clang-17 and clangd-17..."
-    sudo apt-get install -y clang-17 clangd-17
+    echo "📦 Installing clang-19 and clangd-19 from Ubuntu repositories..."
+    sudo apt-get install -y clang-19 clangd-19
 fi
 
-# Set up clang alternatives
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
-sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
-sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-17 100
+# Set clang-19 and clangd-19 as the default
+echo "Setting clang-19 and clangd-19 as default..."
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-19 100
+sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-19 100
+sudo update-alternatives --install /usr/bin/clangd clangd /usr/bin/clangd-19 100
 
 # Install CUDA and development libraries
 echo "Installing CUDA and development libraries..."
@@ -71,10 +43,27 @@ echo "Installing CUDA and development libraries..."
 # Check for specific CUDA 12.8 version
 CUDA_VERSION_REQUIRED="12.8"
 HAS_CORRECT_CUDA=false
+# Allow skipping CUDA installation via environment variable
+INSTALL_CUDA=${INSTALL_CUDA:-true}
 
+# Try to find nvcc in a way that is safe for `set -e`
+NVCC_PATH=""
 if command -v nvcc &>/dev/null; then
+    NVCC_PATH=$(command -v nvcc)
+    echo "Found nvcc in PATH: $NVCC_PATH"
+elif [ -x "/usr/local/cuda/bin/nvcc" ]; then
+    NVCC_PATH="/usr/local/cuda/bin/nvcc"
+    echo "Found nvcc at $NVCC_PATH"
+elif [ -x "/usr/local/cuda-12.8/bin/nvcc" ]; then
+    NVCC_PATH="/usr/local/cuda-12.8/bin/nvcc"
+    echo "Found nvcc at $NVCC_PATH"
+fi
+
+if [ -n "$NVCC_PATH" ]; then
+    echo "Verifying CUDA version using '$NVCC_PATH -v':"
+    $NVCC_PATH -v
     # Get CUDA version from nvcc
-    INSTALLED_CUDA_VERSION=$(nvcc --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
+    INSTALLED_CUDA_VERSION=$($NVCC_PATH --version | grep "release" | sed -n 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/p')
     if [ "$INSTALLED_CUDA_VERSION" = "$CUDA_VERSION_REQUIRED" ]; then
         echo "✅ CUDA $CUDA_VERSION_REQUIRED already installed"
         HAS_CORRECT_CUDA=true
@@ -83,22 +72,25 @@ if command -v nvcc &>/dev/null; then
         HAS_CORRECT_CUDA=false
     fi
 else
-    echo "📦 No CUDA toolkit found"
+    echo "📦 No CUDA toolkit found in PATH or standard locations"
     HAS_CORRECT_CUDA=false
 fi
 
 echo "🔧 Installing development libraries"
-sudo apt-get install -y libstdc++6 libstdc++-12-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
+sudo apt-get install -y libstdc++6 libstdc++-13-dev libffi-dev libncurses-dev zlib1g-dev libxml2-dev git build-essential cmake bc gdb curl wget
 
-if [ "$HAS_CORRECT_CUDA" != "true" ]; then
+if [ "$HAS_CORRECT_CUDA" != "true" ] && [ "$INSTALL_CUDA" = "true" ]; then
     echo "📦 Installing CUDA $CUDA_VERSION_REQUIRED"
     # Install all packages including CUDA toolkit (this is the big download)
     sudo apt-get install -y cuda-toolkit-12.8
+elif [ "$INSTALL_CUDA" != "true" ]; then
+    echo "ℹ️ Skipping CUDA installation because INSTALL_CUDA is not 'true'."
 fi
 
 # Verify clang installation
 echo "Verifying clang installation..."
 clang --version
+clang++ --version
 clangd --version
 
 # Install Miniconda if not already installed
@@ -118,7 +110,7 @@ conda init bash || true
 
 # Create conda environment
 echo "Creating conda environment: $CONDA_ENV"
-conda create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y || true
+conda create -n "$CONDA_ENV" python="$PYTHON_VERSION" -y -c conda-forge || true
 
 # Activate conda environment
 source /opt/miniconda3/etc/profile.d/conda.sh
