@@ -31,4 +31,4 @@ sorter = "usort"
 first_party_detection = false
 
 [project.urls]
-"Homepage" = "https://github.com/pytorch-labs/tritonparse"
+"Homepage" = "https://github.com/meta-pytorch/tritonparse"

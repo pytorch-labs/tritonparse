@@ -49,7 +49,7 @@ def decompress_bin_ndjson(input_file: str, output_file: str = None) -> None:
     try:
         line_count = 0
         # Because we use NDJSON format, each line is a complete JSON record.
-        # It is guruanteed here https://github.com/pytorch-labs/tritonparse/blob/
+        # It is guruanteed here https://github.com/meta-pytorch/tritonparse/blob/
         # c8dcc2a94ac10ede4342dba7456f6ebd8409b95d/tritonparse/structured_logging.py#L320
         with gzip.open(input_path, "rt", encoding="utf-8") as compressed_file:
             with open(output_path, "w", encoding="utf-8") as output:

@@ -50,11 +50,11 @@ jobs:
 
             - name: Check code formatting
               run: |
-                  make format-check || (echo "❌ Format check failed. Please run 'make format' to fix formatting issues, then commit the changes." && echo "📖 For detailed formatting guide, see: https://github.com/pytorch-labs/tritonparse/wiki/05.-Code-Formatting" && exit 1)
+                  make format-check || (echo "❌ Format check failed. Please run 'make format' to fix formatting issues, then commit the changes." && echo "📖 For detailed formatting guide, see: https://github.com/meta-pytorch/tritonparse/wiki/05.-Code-Formatting" && exit 1)
 
             - name: Check linting
               run: |
-                  make lint-check || (echo "❌ Linting failed. Please run 'make format' to fix formatting issues, then commit the changes." && echo "📖 For detailed formatting guide, see: https://github.com/pytorch-labs/tritonparse/wiki/05.-Code-Formatting" && exit 1)
+                  make lint-check || (echo "❌ Linting failed. Please run 'make format' to fix formatting issues, then commit the changes." && echo "📖 For detailed formatting guide, see: https://github.com/meta-pytorch/tritonparse/wiki/05.-Code-Formatting" && exit 1)
 
     test-from-source:
         runs-on: 4-core-ubuntu-gpu-t4
