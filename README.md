@@ -1,11 +1,11 @@
 # TritonParse
 
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deploy-brightgreen)](https://meta-pytorch.github.io/tritonparse/)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deploy-brightgreen)](https://meta-pytorch.org/tritonparse/)
 
 **A comprehensive visualization and analysis tool for Triton IR files** — helping developers analyze, debug, and understand Triton kernel compilation processes.
 
-🌐 **[Try it online →](https://meta-pytorch.github.io/tritonparse/?json_url=https://meta-pytorch.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
+🌐 **[Try it online →](https://meta-pytorch.org/tritonparse/?json_url=https://meta-pytorch.org/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
 
 ## ✨ Key Features
 
@@ -56,7 +56,7 @@ INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/t
 
 ### 2. Visualize Results
 
-**Visit [https://meta-pytorch.github.io/tritonparse/](https://meta-pytorch.github.io/tritonparse/?json_url=https://meta-pytorch.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
+**Visit [https://meta-pytorch.org/tritonparse/](https://meta-pytorch.org/tritonparse/?json_url=https://meta-pytorch.org/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
 
 > **🔒 Privacy Note**: Your trace files are processed entirely in your browser - nothing is uploaded to any server!
 
@@ -121,4 +121,4 @@ This project is licensed under the BSD-3 License - see the [LICENSE](LICENSE) fi
 
 ---
 
-**✨ Ready to get started?** Visit our **[Installation Guide](https://github.com/meta-pytorch/tritonparse/wiki/01.-Installation)** or try the **[online tool](https://meta-pytorch.github.io/tritonparse/)** directly!
+**✨ Ready to get started?** Visit our **[Installation Guide](https://github.com/meta-pytorch/tritonparse/wiki/01.-Installation)** or try the **[online tool](https://meta-pytorch.org/tritonparse/)** directly!
