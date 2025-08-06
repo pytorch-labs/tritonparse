@@ -64,7 +64,7 @@ INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/t
 
 **For basic usage (trace generation):**
 ```bash
-git clone https://github.com/pytorch-labs/tritonparse.git
+git clone https://github.com/meta-pytorch/tritonparse.git
 cd tritonparse
 pip install -e .
 ```

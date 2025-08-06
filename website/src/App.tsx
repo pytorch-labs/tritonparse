@@ -386,7 +386,7 @@ function App() {
               {/* GitHub and Wiki Links */}
               <div className="flex items-center space-x-4">
                 <ExternalLink
-                  href="https://github.com/pytorch-labs/tritonparse"
+                  href="https://github.com/meta-pytorch/tritonparse"
                   title="View on GitHub"
                   text="GitHub"
                   icon={
@@ -397,7 +397,7 @@ function App() {
                 />
 
                 <ExternalLink
-                  href="https://github.com/pytorch-labs/tritonparse/wiki"
+                  href="https://github.com/meta-pytorch/tritonparse/wiki"
                   title="View Wiki"
                   text="Wiki"
                   icon={
