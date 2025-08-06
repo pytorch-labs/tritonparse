@@ -1,11 +1,11 @@
 # TritonParse
 
 [![License: BSD-3](https://img.shields.io/badge/License-BSD--3-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deploy-brightgreen)](https://pytorch-labs.github.io/tritonparse/)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Deploy-brightgreen)](https://meta-pytorch.github.io/tritonparse/)
 
 **A comprehensive visualization and analysis tool for Triton IR files** — helping developers analyze, debug, and understand Triton kernel compilation processes.
 
-🌐 **[Try it online →](https://pytorch-labs.github.io/tritonparse/?json_url=https://pytorch-labs.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
+🌐 **[Try it online →](https://meta-pytorch.github.io/tritonparse/?json_url=https://meta-pytorch.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)**
 
 ## ✨ Key Features
 
@@ -56,7 +56,7 @@ INFO:tritonparse:Copying parsed logs from /tmp/tmp1gan7zky to /scratch/findhao/t
 
 ### 2. Visualize Results
 
-**Visit [https://pytorch-labs.github.io/tritonparse/](https://pytorch-labs.github.io/tritonparse/?json_url=https://pytorch-labs.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
+**Visit [https://meta-pytorch.github.io/tritonparse/](https://meta-pytorch.github.io/tritonparse/?json_url=https://meta-pytorch.github.io/tritonparse/dedicated_log_triton_trace_findhao__mapped.ndjson.gz)** and open your local trace files (.ndjson.gz format).
 
 > **🔒 Privacy Note**: Your trace files are processed entirely in your browser - nothing is uploaded to any server!
 
@@ -80,12 +80,12 @@ pip install triton
 
 | 📖 Guide | Description |
 |----------|-------------|
-| **[🏠 Wiki Home](https://github.com/pytorch-labs/tritonparse/wiki)** | Complete documentation and navigation |
-| **[📦 Installation Guide](https://github.com/pytorch-labs/tritonparse/wiki/01.-Installation)** | Detailed setup for all scenarios |
-| **[📋 Usage Guide](https://github.com/pytorch-labs/tritonparse/wiki/02.-Usage-Guide)** | Complete workflow and examples |
-| **[🌐 Web Interface Guide](https://github.com/pytorch-labs/tritonparse/wiki/03.-Web-Interface-Guide)** | Master the visualization interface |
-| **[🔧 Developer Guide](https://github.com/pytorch-labs/tritonparse/wiki/04.-Developer-Guide)** | Contributing and development setup |
-| **[❓ FAQ](https://github.com/pytorch-labs/tritonparse/wiki/06.-FAQ)** | Frequently asked questions |
+| **[🏠 Wiki Home](https://github.com/meta-pytorch/tritonparse/wiki)** | Complete documentation and navigation |
+| **[📦 Installation Guide](https://github.com/meta-pytorch/tritonparse/wiki/01.-Installation)** | Detailed setup for all scenarios |
+| **[📋 Usage Guide](https://github.com/meta-pytorch/tritonparse/wiki/02.-Usage-Guide)** | Complete workflow and examples |
+| **[🌐 Web Interface Guide](https://github.com/meta-pytorch/tritonparse/wiki/03.-Web-Interface-Guide)** | Master the visualization interface |
+| **[🔧 Developer Guide](https://github.com/meta-pytorch/tritonparse/wiki/04.-Developer-Guide)** | Contributing and development setup |
+| **[❓ FAQ](https://github.com/meta-pytorch/tritonparse/wiki/06.-FAQ)** | Frequently asked questions |
 
 ## 🛠️ Tech Stack
 
@@ -103,7 +103,7 @@ Each stage can be inspected and compared to understand optimization transformati
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our **[Developer Guide](https://github.com/pytorch-labs/tritonparse/wiki/04.-Developer-Guide)** for:
+We welcome contributions! Please see our **[Developer Guide](https://github.com/meta-pytorch/tritonparse/wiki/04.-Developer-Guide)** for:
 - Development setup
 - Code formatting standards
 - Pull request process
@@ -111,9 +111,9 @@ We welcome contributions! Please see our **[Developer Guide](https://github.com/
 
 ## 📞 Support & Community
 
-- **🐛 Report Issues**: [GitHub Issues](https://github.com/pytorch-labs/tritonparse/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/pytorch-labs/tritonparse/discussions)
-- **📚 Documentation**: [TritonParse Wiki](https://github.com/pytorch-labs/tritonparse/wiki)
+- **🐛 Report Issues**: [GitHub Issues](https://github.com/meta-pytorch/tritonparse/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/meta-pytorch/tritonparse/discussions)
+- **📚 Documentation**: [TritonParse Wiki](https://github.com/meta-pytorch/tritonparse/wiki)
 
 ## 📄 License
 
@@ -121,4 +121,4 @@ This project is licensed under the BSD-3 License - see the [LICENSE](LICENSE) fi
 
 ---
 
-**✨ Ready to get started?** Visit our **[Installation Guide](https://github.com/pytorch-labs/tritonparse/wiki/01.-Installation)** or try the **[online tool](https://pytorch-labs.github.io/tritonparse/)** directly!
+**✨ Ready to get started?** Visit our **[Installation Guide](https://github.com/meta-pytorch/tritonparse/wiki/01.-Installation)** or try the **[online tool](https://meta-pytorch.github.io/tritonparse/)** directly!

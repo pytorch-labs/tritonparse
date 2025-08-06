@@ -67,6 +67,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+*.mdc
 
 # end
