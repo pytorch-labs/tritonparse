@@ -589,7 +589,7 @@ class TestTritonparseCUDA(unittest.TestCase):
 
         finally:
             # Clean up
-            shutil.rmtree(temp_dir)
+            # shutil.rmtree(temp_dir)
             print("✓ Cleaned up temporary directory")
             tritonparse.structured_logging.clear_logging_config()
 
