@@ -9,8 +9,8 @@ This module reduces LLM burden by emitting Python code that:
 The generated code is intended to be inserted into the final repro script.
 """
 
-from typing import Dict, Any, List, Optional
 import json
+from typing import Any, Dict, List, Optional
 
 
 def _torch_dtype_expr(dtype: str) -> str:
@@ -69,7 +69,9 @@ def _emit_tensor_alloc(name: str, spec: Dict[str, Any]) -> str:
     lines: List[str] = []
     # allocate backing storage
     storage_numel = _compute_storage_numel(shape, stride_list)
-    lines.append(f"# {name}: shape={shape}, dtype={dtype}, device={device}, stride={stride_list}")
+    lines.append(
+        f"# {name}: shape={shape}, dtype={dtype}, device={device}, stride={stride_list}"
+    )
     lines.append(
         f"_storage_{name} = torch.empty(({storage_numel},), dtype={dtype}, device=device)"
     )
@@ -138,5 +140,3 @@ def generate_kwargs_dict(bundle: Dict[str, Any]) -> Dict[str, Any]:
     launch = bundle.get("launch", {}) or {}
     kwargs = launch.get("kwargs", {}) or {}
     return kwargs
-
-

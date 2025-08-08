@@ -1,8 +1,9 @@
-from pathlib import Path
-from typing import Dict, Any
 import json
+from pathlib import Path
+from typing import Any, Dict
 
 PROMPTS_DIR = Path(__file__).parent
+
 
 def render_prompt(name: str, context: Dict[str, Any]) -> str:
     text = (PROMPTS_DIR / name).read_text(encoding="utf-8")
@@ -15,5 +16,3 @@ def render_prompt(name: str, context: Dict[str, Any]) -> str:
             else:
                 text = text.replace(token, str(v))
     return text
-
-

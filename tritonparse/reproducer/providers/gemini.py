@@ -1,14 +1,19 @@
 import os
-from typing import Optional, Dict, Any, List
-from google.genai import Client
 import re
+from typing import Any, Dict, List, Optional
+
+from google.genai import Client
+
 
 def _extract_python_block(s: str) -> str:
     m = re.search(r"""```python\s+(.*?)```""", s, flags=re.S)
     return m.group(1).strip() if m else ""
 
+
 class GeminiProvider:
-    def __init__(self, project: str, location: str = "us-central1", model: str = "gemini-2.5-pro"):
+    def __init__(
+        self, project: str, location: str = "us-central1", model: str = "gemini-2.5-pro"
+    ):
         # Expect GOOGLE_APPLICATIONS_CREDENTIALS to be set
         if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             raise EnvironmentError("GOOGLE_APPLICATION_CREDENTIALS not set.")
@@ -40,5 +45,3 @@ class GeminiProvider:
         if not code.strip():
             raise RuntimeError(f"Empty response from Gemini. Raw: {text[:2000]}")
         return code
-
-

@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any, List, Protocol
+from typing import Any, Dict, List, Optional, Protocol
+
 
 class LLMProvider(Protocol):
     def generate_code(
@@ -11,5 +12,3 @@ class LLMProvider(Protocol):
         stop: Optional[List[str]] = None,
         extra: Optional[Dict[str, Any]] = None,
     ) -> str: ...
-
-
