@@ -1,0 +1,35 @@
+Kernel source code:
+{{ kernel_source }}
+
+Compile metadata:
+{{ compile }}
+
+Launch config:
+{{ launch }}
+
+Tensor/Scalar arguments:
+{{ args }}
+
+Environment notes:
+- If tensor strides differ from contiguous, preserve them using as_strided.
+- If any constexpr or kwargs are provided, pass them exactly to the kernel call.
+- Use torch.cuda.synchronize() after kernel launch.
+
+Generate a single runnable Python file that uses the following pre-generated allocation snippet when possible:
+
+Pre-generated allocation snippet (use it verbatim if compatible):
+{{ allocation_snippet }}
+
+Kernel call kwargs (JSON):
+{{ kwargs_dict }}
+
+Now generate a single runnable Python file that:
+1) imports torch/triton/tl
+2) sets device from the arguments (e.g., "cuda:0"), seeds RNG
+3) allocates tensors with given shape/dtype/stride/device (preserve non-contiguous layouts)
+4) defines the given Triton kernel (exactly as provided)
+5) launches the kernel with grid/num_warps/num_stages/kwargs
+6) prints a small summary (tensor shape/dtype, maybe a[0,0])
+7) can be run via: python repro.py
+
+

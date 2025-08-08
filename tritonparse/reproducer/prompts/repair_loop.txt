@@ -1,0 +1,14 @@
+This was the previously generated script (first 120 lines truncated if huge):
+{{ prev_code_excerpt }}
+
+It failed with the following error/log:
+{{ error_text }}
+
+Please return a corrected FULL Python script. Output only the code.
+Fixes to consider:
+- dtype/device mismatches
+- stride preservation
+- missing constexpr kwargs or wrong names
+- grid/num_warps/num_stages alignment
+
+
