@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 from tritonparse.reproducer import (
-    generate_from_ndjson,
     generate_allocation_snippet,
+    generate_from_ndjson,
     generate_kwargs_dict,
 )
 
@@ -126,5 +126,3 @@ def test_orchestrator_with_dummy_provider(tmp_path):
     assert res.get("returncode", 0) == 0
     # stdout should contain our dummy output
     assert "dummy ok" in (res.get("stdout") or "")
-
-

@@ -1,14 +1,17 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 from .ingestion.ndjson import build_context_bundle
-from .prompts.loader import render_prompt
-from .runtime.executor import run_python
-from .providers.base import LLMProvider
 from .param_generator import generate_allocation_snippet, generate_kwargs_dict
+from .prompts.loader import render_prompt
+from .providers.base import LLMProvider
+from .runtime.executor import run_python
+
 
 def _excerpt(s: str, n: int = 160):
     lines = s.splitlines()
     return "\n".join(lines[:n])
+
 
 def generate_from_ndjson(
     ndjson_path: str,
@@ -18,13 +21,17 @@ def generate_from_ndjson(
     out_py="repro.py",
     execute=False,
     retries: int = 0,
-    **gen_kwargs
+    **gen_kwargs,
 ) -> Dict[str, Any]:
     bundle = build_context_bundle(ndjson_path, launch_index=launch_index)
     # Augment bundle with pre-generated parameter allocation code to reduce LLM burden
     allocation_snippet = generate_allocation_snippet(bundle)
     kwargs_dict = generate_kwargs_dict(bundle)
-    context = {**bundle, "allocation_snippet": allocation_snippet, "kwargs_dict": kwargs_dict}
+    context = {
+        **bundle,
+        "allocation_snippet": allocation_snippet,
+        "kwargs_dict": kwargs_dict,
+    }
     system_prompt = render_prompt("system.txt", context)
     user_prompt = render_prompt("generate_one_shot.txt", context)
 
@@ -49,6 +56,10 @@ def generate_from_ndjson(
         Path(out_py).write_text(code, encoding="utf-8")
         rc, out, err = run_python(out_py)
 
-    return {"path": out_py, "returncode": rc, "stdout": out, "stderr": err, "retries_used": attempt}
-
-
+    return {
+        "path": out_py,
+        "returncode": rc,
+        "stdout": out,
+        "stderr": err,
+        "retries_used": attempt,
+    }

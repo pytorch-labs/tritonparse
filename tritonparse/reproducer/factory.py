@@ -14,5 +14,3 @@ def make_gemini_provider() -> GeminiProvider:
         location=cfg.location,
         model=cfg.model,
     )
-
-

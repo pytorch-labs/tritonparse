@@ -1,7 +1,8 @@
 import argparse
+
+from .config import load_config
 from .factory import make_gemini_provider
 from .orchestrator import generate_from_ndjson
-from .config import load_config
 
 
 def add_reproducer_subparser(parser: argparse.ArgumentParser) -> None:
@@ -34,5 +35,3 @@ def maybe_handle_reproducer(args: argparse.Namespace) -> bool:
     )
     print(res)
     return True
-
-

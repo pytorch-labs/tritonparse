@@ -4,5 +4,3 @@ Currently supports NDJSON trace parsing.
 """
 
 __all__ = []
-
-

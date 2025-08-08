@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List
+
 
 def _iter_events(path: str):
     with open(path, "r", encoding="utf-8") as f:
@@ -14,6 +14,7 @@ def _iter_events(path: str):
                 # skip malformed lines
                 continue
 
+
 def _index_compilations(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     idx = {}
     for e in events:
@@ -26,12 +27,20 @@ def _index_compilations(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any
             idx[h] = e
     return idx
 
+
 def _get_launches(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [e for e in events if e.get("event_type") == "launch"]
 
-def _resolve_kernel_source(launch: Dict[str, Any], comp_idx: Dict[str, Dict[str, Any]]) -> str:
+
+def _resolve_kernel_source(
+    launch: Dict[str, Any], comp_idx: Dict[str, Dict[str, Any]]
+) -> str:
     # In new format, launch has top-level compilation_metadata, not payload.*
-    comp_meta = launch.get("compilation_metadata") or launch.get("payload", {}).get("compilation_metadata") or {}
+    comp_meta = (
+        launch.get("compilation_metadata")
+        or launch.get("payload", {}).get("compilation_metadata")
+        or {}
+    )
     h = comp_meta.get("hash")
     if not h:
         return ""
@@ -39,6 +48,7 @@ def _resolve_kernel_source(launch: Dict[str, Any], comp_idx: Dict[str, Dict[str,
     payload = comp.get("payload") or {}
     py = payload.get("python_source") or {}
     return py.get("code", "")
+
 
 def _pack_args(args: Dict[str, Any]) -> Dict[str, Any]:
     packed = {}
@@ -51,7 +61,9 @@ def _pack_args(args: Dict[str, Any]) -> Dict[str, Any]:
                 "dtype": v.get("dtype") if isinstance(v, dict) else None,
                 "device": v.get("device") if isinstance(v, dict) else None,
                 "stride": v.get("stride") if isinstance(v, dict) else None,
-                "is_contiguous": v.get("is_contiguous") if isinstance(v, dict) else None,
+                "is_contiguous": (
+                    v.get("is_contiguous") if isinstance(v, dict) else None
+                ),
                 "numel": v.get("numel") if isinstance(v, dict) else None,
             }
         else:
@@ -68,21 +80,32 @@ def _pack_args(args: Dict[str, Any]) -> Dict[str, Any]:
                 }
     return packed
 
+
 def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, Any]:
     events = list(_iter_events(ndjson_path))
     launches = _get_launches(events)
     if not launches:
         raise RuntimeError("No launch events found in NDJSON.")
     if launch_index < 0 or launch_index >= len(launches):
-        raise IndexError(f"launch_index out of range: {launch_index} (total {len(launches)})")
+        raise IndexError(
+            f"launch_index out of range: {launch_index} (total {len(launches)})"
+        )
     launch = launches[launch_index]
     comp_idx = _index_compilations(events)
     kernel_source = _resolve_kernel_source(launch, comp_idx)
 
     # flatten launch fields (support both formats)
     grid = launch.get("grid") or (launch.get("payload", {})).get("grid")
-    comp_meta = launch.get("compilation_metadata") or (launch.get("payload", {})).get("compilation_metadata") or {}
-    extracted_args = launch.get("extracted_args") or (launch.get("payload", {})).get("extracted_args") or {}
+    comp_meta = (
+        launch.get("compilation_metadata")
+        or (launch.get("payload", {})).get("compilation_metadata")
+        or {}
+    )
+    extracted_args = (
+        launch.get("extracted_args")
+        or (launch.get("payload", {})).get("extracted_args")
+        or {}
+    )
 
     # compile metadata subset we care about
     compile_block = {
@@ -107,7 +130,11 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
         kwargs[k] = val
 
     # tensor args: only tensors
-    tensor_args = {k: v for k, v in extracted_args.items() if isinstance(v, dict) and v.get("type") == "tensor"}
+    tensor_args = {
+        k: v
+        for k, v in extracted_args.items()
+        if isinstance(v, dict) and v.get("type") == "tensor"
+    }
 
     bundle = {
         "kernel_source": kernel_source,
@@ -120,5 +147,3 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
         "tensor_args": _pack_args(tensor_args),
     }
     return bundle
-
-
