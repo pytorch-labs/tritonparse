@@ -93,6 +93,11 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
     launch = launches[launch_index]
     comp_idx = _index_compilations(events)
     kernel_source = _resolve_kernel_source(launch, comp_idx)
+    # find '@triton.jit' and slice the string
+    jit_marker = "@triton.jit"
+    jit_pos = kernel_source.find(jit_marker)
+    if jit_pos != -1:
+        kernel_source = kernel_source[jit_pos:]
 
     # flatten launch fields (support both formats)
     grid = launch.get("grid") or (launch.get("payload", {})).get("grid")
@@ -124,7 +129,10 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
             continue
         # pick usable value
         if isinstance(v, dict):
-            val = v.get("value", v.get("repr"))
+            if v.get("type") == "NoneType":
+                val = None
+            else:
+                val = v.get("value", v.get("repr"))
         else:
             val = v
         kwargs[k] = val
