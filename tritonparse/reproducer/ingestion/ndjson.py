@@ -81,6 +81,21 @@ def _pack_args(args: Dict[str, Any]) -> Dict[str, Any]:
     return packed
 
 
+# Sentinel and helper to normalize extracted argument values
+_SKIP = object()
+
+
+def _decode_arg(raw: Any):
+    if not isinstance(raw, dict):
+        return raw
+    t = raw.get("type")
+    if t == "tensor":
+        return _SKIP
+    if t == "NoneType":
+        return None
+    return raw.get("value", raw.get("repr"))
+
+
 def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, Any]:
     events = list(_iter_events(ndjson_path))
     launches = _get_launches(events)
@@ -125,16 +140,9 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
     # kwargs: include constexpr + explicit scalars used for launch (skip tensor args)
     kwargs = {}
     for k, v in extracted_args.items():
-        if isinstance(v, dict) and v.get("type") == "tensor":
+        val = _decode_arg(v)
+        if val is _SKIP:
             continue
-        # pick usable value
-        if isinstance(v, dict):
-            if v.get("type") == "NoneType":
-                val = None
-            else:
-                val = v.get("value", v.get("repr"))
-        else:
-            val = v
         kwargs[k] = val
 
     # tensor args: only tensors
