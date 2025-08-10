@@ -11,9 +11,9 @@ SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr"]
 def _generate_autotune_analysis_events(
     autotune_sessions: Dict[str, Dict[str, List]],
     autotune_winners: Dict[str, str],
-    kernels_by_hash: Dict[str, Any],
+    compilations_by_hash: Dict[str, Any],
     session_stacks: Dict[str, List[Dict[str, Any]]],
-    launches_by_hash: Dict[str, Dict[str, Any]],
+    launch_by_group_hash: Dict[str, Dict[str, Any]],
 ) -> Dict[str, List[str]]:
     """
     Generates autotune_analysis events from grouped compilation sessions.
@@ -21,9 +21,9 @@ def _generate_autotune_analysis_events(
     Args:
         autotune_sessions: Dict mapping session_id to {"compilations": [...], "launches": [...]}.
         autotune_winners: Dict mapping session_id to the winning kernel hash.
-        kernels_by_hash: Dict containing processed kernel data, used to find output files.
+        compilations_by_hash: Dict containing processed kernel data, used to find output files.
         session_stacks: Dict mapping session_id to the user call stack.
-        launches_by_hash: Dict mapping launch_hash to launch_event data.
+        launch_by_group_hash: Dict mapping launch_group_hash to launch_event data.
 
     Returns:
         A dictionary mapping output file paths to a list of autotune_analysis event strings.
@@ -52,8 +52,8 @@ def _generate_autotune_analysis_events(
             first_comp_hash = metadata.get("hash")
             name = metadata.get("name")
 
-            if first_comp_hash and first_comp_hash in kernels_by_hash:
-                output_file = kernels_by_hash[first_comp_hash].get("output_file")
+            if first_comp_hash and first_comp_hash in compilations_by_hash:
+                output_file = compilations_by_hash[first_comp_hash].get("output_file")
 
                 configs = []
                 compilation_hashes = []
@@ -79,6 +79,8 @@ def _generate_autotune_analysis_events(
                     "configs": configs,
                     "compilation_hashes": compilation_hashes,
                     "common_info": {
+                        # the stack for all compilations should be the same
+                        # @TODO what if we have nested kernel calls?
                         "stack": first_comp.get("stack"),
                         "python_source": first_comp.get("payload", {}).get(
                             "python_source"
@@ -89,7 +91,9 @@ def _generate_autotune_analysis_events(
         # Analyze launch events (if any)
         launch_analysis = None
         if launch_hashes:
-            launch_params_diff = _analyze_launch_params(launch_hashes, launches_by_hash)
+            launch_params_diff = _analyze_launch_params(
+                launch_hashes, launch_by_group_hash
+            )
             launch_analysis = {
                 "launch_hashes": launch_hashes,
                 "launch_params_diff": launch_params_diff,
@@ -98,13 +102,15 @@ def _generate_autotune_analysis_events(
             # If no output_file from compilation, try to get it from first launch
             if not output_file and launch_hashes:
                 first_launch_hash = launch_hashes[0]
-                if first_launch_hash in launches_by_hash:
-                    first_launch = launches_by_hash[first_launch_hash]
+                if first_launch_hash in launch_by_group_hash:
+                    first_launch = launch_by_group_hash[first_launch_hash]
                     kernel_hash = first_launch.get("compilation_metadata", {}).get(
                         "hash"
                     )
-                    if kernel_hash and kernel_hash in kernels_by_hash:
-                        output_file = kernels_by_hash[kernel_hash].get("output_file")
+                    if kernel_hash and kernel_hash in compilations_by_hash:
+                        output_file = compilations_by_hash[kernel_hash].get(
+                            "output_file"
+                        )
                         if not name:
                             # Try to get name from compilation metadata
                             name = first_launch.get("compilation_metadata", {}).get(
@@ -245,14 +251,14 @@ def _generate_launch_diff(
 
 
 def _analyze_launch_params(
-    launch_hashes: List[str], launches_by_hash: Dict[str, Any]
+    launch_hashes: List[str], launch_by_group_hash: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Analyze launch parameters to find what's the same and what differs across launches.
 
     Args:
         launch_hashes: List of launch hashes for this session
-        launches_by_hash: Dict mapping launch_hash to launch_event data
+        launch_by_group_hash: Dict mapping launch_group_hash to launch_event data
 
     Returns:
         Dict with 'sames' and 'diffs' keys containing parameter analysis
@@ -264,8 +270,8 @@ def _analyze_launch_params(
     launches_with_indices = []
     # TODO: the i here is not the index in the original launch_events, but rather the index in the launch_hashes. This should be fixed in the future if we want to use the index for anything meaningful.
     for i, launch_hash in enumerate(launch_hashes):
-        if launch_hash in launches_by_hash:
-            launch_event = launches_by_hash[launch_hash]
+        if launch_hash in launch_by_group_hash:
+            launch_event = launch_by_group_hash[launch_hash]
             launches_with_indices.append((launch_event, i))
 
     if not launches_with_indices:

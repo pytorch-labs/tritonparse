@@ -3,6 +3,21 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 
+def _remove_keys_recursive(obj: Any, keys_to_remove: List[str]) -> Any:
+    """
+    Recursively remove any keys present in keys_to_remove from a nested dict/list structure.
+    """
+    if isinstance(obj, dict):
+        return {
+            key: _remove_keys_recursive(value, keys_to_remove)
+            for key, value in obj.items()
+            if key not in keys_to_remove
+        }
+    if isinstance(obj, list):
+        return [_remove_keys_recursive(item, keys_to_remove) for item in obj]
+    return obj
+
+
 def compute_launch_event_hash(launch_event: Dict[str, Any]) -> str:
     """
     Compute a stable hash for a launch event.
@@ -13,11 +28,13 @@ def compute_launch_event_hash(launch_event: Dict[str, Any]) -> str:
     Returns:
         A SHA-256 hash string (16 characters) of the launch event
     """
-    # Create a copy without volatile fields like timestamp
-    stable_event = launch_event.copy()
-    # # Remove fields that change between identical launches
-    # for field in ["timestamp", "pid"]:
-    #     stable_event.pop(field, None)
+    # Create a deep-cleaned copy excluding volatile/non-semantic fields
+    # Excluded keys:
+    # - "timestamp", "pid": runtime-variant
+    # - "launch_group_hash", "occurrence_id": injected during processing
+    # - "function": currently unstable/None for first kernel in samples
+    excluded = ["timestamp", "pid", "launch_group_hash", "occurrence_id", "function"]
+    stable_event = _remove_keys_recursive(launch_event, excluded)
 
     # Sort keys for stable serialization
     stable_json = json.dumps(stable_event, sort_keys=True, separators=(",", ":"))

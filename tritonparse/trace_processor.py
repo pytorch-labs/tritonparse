@@ -219,13 +219,13 @@ def parse_single_file(
         split_by_frame_id_and_compile_id (bool, optional): Whether to split
             output files by frame_id and compile_id. Defaults to True.
     """
-    kernels_by_hash = defaultdict(
+    compilations_by_hash = defaultdict(
         lambda: {"compilation": None, "launches": [], "output_file": None}
     )
     autotune_sessions = defaultdict(lambda: {"compilations": [], "launches": []})
     autotune_winners = {}  # session_id -> winning_hash
     session_stacks = {}  # session_id -> user_stack
-    launches_by_hash = {}  # launch_hash -> launch_event
+    launch_by_group_hash = {}  # launch_group_hash -> launch_event
 
     output_dir = output_dir or os.path.dirname(file_path)
     is_compressed_input = file_path.endswith(".bin.ndjson")
@@ -287,31 +287,40 @@ def parse_single_file(
 
                 output_file = os.path.join(output_dir, fname)
                 # The full processing is deferred until the final write.
-                kernels_by_hash[kernel_hash]["compilation"] = json_str
-                kernels_by_hash[kernel_hash]["output_file"] = output_file
+                # Record occurrence_id for traceability on compilation event
+                parsed_json["occurrence_id"] = i
+                compilations_by_hash[kernel_hash]["compilation"] = json.dumps(
+                    parsed_json, separators=(",", ":")
+                )
+                compilations_by_hash[kernel_hash]["output_file"] = output_file
 
             elif event_type == "launch":
                 kernel_hash = parsed_json.get("compilation_metadata", {}).get("hash")
-                if kernel_hash:
-                    kernels_by_hash[kernel_hash]["launches"].append(
-                        (parsed_json, i + 1)
-                    )
+                # Note: adding to compilation bucket deferred until we compute group hash below
 
-                # Compute launch event hash and store the event
-                launch_hash = compute_launch_event_hash(parsed_json)
-                # Add hash to the launch event itself for traceability
-                parsed_json["launch_hash"] = launch_hash
-                launches_by_hash[launch_hash] = parsed_json
+                # Compute launch group/content hash and store the event
+                launch_group_hash = compute_launch_event_hash(parsed_json)
+                # Add group hash to the launch event itself for traceability
+                parsed_json["launch_group_hash"] = launch_group_hash
+                # Also record the occurrence id (global trace index) for uniqueness
+                parsed_json["occurrence_id"] = i
+                # Store by group/content hash
+                launch_by_group_hash[launch_group_hash] = parsed_json
 
                 # Check if this launch is related to autotune
                 stack = parsed_json.get("stack", [])
                 session_id, user_stack = get_autotune_session_id(stack)
                 if session_id:
-                    # Add launch hash to autotune sessions for complete analysis
-                    autotune_sessions[session_id]["launches"].append(launch_hash)
+                    # Add launch group hash to autotune sessions for complete analysis
+                    autotune_sessions[session_id]["launches"].append(launch_group_hash)
                     # Store the user stack for this session
                     if user_stack and session_id not in session_stacks:
                         session_stacks[session_id] = user_stack
+                # After computing group hash, append the concrete launch event with its occurrence_id
+                if kernel_hash:
+                    compilations_by_hash[kernel_hash]["launches"].append(
+                        (parsed_json, i)
+                    )
 
                     # Check if this is a winning autotune launch (not a benchmark)
                     if not _is_autotune_benchmark_launch(stack):
@@ -324,18 +333,7 @@ def parse_single_file(
     # Organize lines for final output, keyed by output file path
     all_output_lines = defaultdict(list)
 
-    # Generate autotune analysis events
-    autotune_events_by_file = _generate_autotune_analysis_events(
-        autotune_sessions,
-        autotune_winners,
-        kernels_by_hash,
-        session_stacks,
-        launches_by_hash,
-    )
-    for output_file, events in autotune_events_by_file.items():
-        all_output_lines[output_file].extend(events)
-
-    for _kernel_hash, data in kernels_by_hash.items():
+    for _kernel_hash, data in compilations_by_hash.items():
         compilation_json_str = data["compilation"]
         launches_with_indices = data["launches"]
         output_file = data["output_file"]
@@ -377,6 +375,17 @@ def parse_single_file(
             all_output_lines[output_file].append(
                 json.dumps(launch_diff_event, separators=(",", ":")) + "\n"
             )
+
+    # Generate autotune analysis events
+    autotune_events_by_file = _generate_autotune_analysis_events(
+        autotune_sessions,
+        autotune_winners,
+        compilations_by_hash,
+        session_stacks,
+        launch_by_group_hash,
+    )
+    for output_file, events in autotune_events_by_file.items():
+        all_output_lines[output_file].extend(events)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
