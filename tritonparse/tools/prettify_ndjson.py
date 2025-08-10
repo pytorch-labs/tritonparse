@@ -273,7 +273,7 @@ Examples:
         help="Specify line numbers to include using 1-based indexing (e.g., '1,2,3,5-10'). "
         "Line 1 is the first line of the file. Only these lines from the original NDJSON will be processed. "
         "Supports individual lines (1,2,3) and ranges (5-10). Also supports negative single numbers "
-        "to index from the end (e.g., '-1' = last line, '-5' = 5th from last).",
+        "to select the last N lines (e.g., '-1' = last 1 line, '-5' = last 5 lines).",
     )
 
     parser.add_argument(
@@ -336,24 +336,14 @@ Examples:
                     )
 
                     resolved = set()
-                    out_of_range_negatives = []
                     for n in raw_line_filter:
                         if n < 0:
-                            mapped = (
-                                effective_total + n + 1
-                            )  # -1 -> last non-empty line
-                            if mapped >= 1:
-                                resolved.add(mapped)
-                            else:
-                                out_of_range_negatives.append(n)
+                            # Interpret -k as the last k lines (using effective_total)
+                            k = abs(n)
+                            start = max(1, effective_total - k + 1)
+                            resolved.update(range(start, effective_total + 1))
                         else:
                             resolved.add(n)
-
-                    if out_of_range_negatives:
-                        print(
-                            f"Warning: Negative indices {out_of_range_negatives} are out of range for file with {effective_total} effective lines and will be ignored",
-                            file=sys.stderr,
-                        )
 
                     line_filter = resolved
                 else:
