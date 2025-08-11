@@ -276,12 +276,6 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                   <div key={idx} className="bg-gray-50 p-4 rounded-md border border-gray-200">
                     <div className="mb-2 text-sm text-gray-700">
                       <span className="font-semibold">Session:</span> {sess.session_id}
-                      {sess.selected_hash && (
-                        <span className="ml-3">Selected: <span className="font-mono">{sess.selected_hash}</span></span>
-                      )}
-                      {winner && (
-                        <span className="ml-3">Winner Compilation: <span className="font-mono">{winner}</span></span>
-                      )}
                     </div>
                     {/* Sames inline text */}
                     {Object.keys(sames).length > 0 && (
@@ -293,6 +287,11 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                           </span>
                         ))}
                       </div>
+                    )}
+
+                    {/* Hint for final selection */}
+                    {winner && (
+                      <div className="mb-1 text-xs text-gray-500">Highlighted row is final selection</div>
                     )}
 
                     {/* Varies table: rows = compilation hashes, cols = varyKeys */}
@@ -472,91 +471,6 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
           </div>
         </div>
 
-        {/* Autotune Sessions */}
-        {kernel.autotuneSessions && kernel.autotuneSessions.length > 0 && (
-          <div className="mt-6">
-            <h3 className="text-lg font-medium mb-2 text-gray-800">Autotune Analysis</h3>
-            <div className="space-y-4">
-              {kernel.autotuneSessions.map((session, idx) => {
-                const sess = session as any;
-                const winner = sess.winner_compilation_hash as string | undefined;
-                const compHashes: string[] = sess?.compilation_analysis?.compilation_hashes || [];
-                const cfgs = sess?.autotune_args_summary?.autotune_configs || {};
-                const sames = cfgs.sames || {};
-                const varies = cfgs.varies || {};
-                const varyKeys = Object.keys(varies);
-                return (
-                  <div key={idx} className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                    <div className="mb-2 text-sm text-gray-700">
-                      <span className="font-semibold">Session:</span> {sess.session_id}
-                      {sess.selected_hash && (
-                        <span className="ml-3">Selected: <span className="font-mono">{sess.selected_hash}</span></span>
-                      )}
-                      {winner && (
-                        <span className="ml-3">Winner Compilation: <span className="font-mono">{winner}</span></span>
-                      )}
-                    </div>
-                    {/* Sames inline text */}
-                    {Object.keys(sames).length > 0 && (
-                      <div className="mb-3 text-sm text-gray-700">
-                        <span className="font-semibold mr-2">Common Params:</span>
-                        {Object.entries(sames).map(([k, v], i) => (
-                          <span key={k} className="mr-4">
-                            <span className="text-gray-600">{k}:</span> <span className="font-mono">{typeof v === 'object' ? '…' : String(v)}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Varies table: rows = compilation hashes, cols = varyKeys */}
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="text-left text-gray-600">
-                            <th className="px-2 py-1 w-56">Compilation Hash</th>
-                            {varyKeys.map((k) => (
-                              <th key={k} className="px-2 py-1">{k}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {compHashes.map((ch) => (
-                            <tr key={ch} className={`${winner && ch === winner ? 'bg-yellow-50' : ''}`}>
-                              <td className="px-2 py-1 font-mono text-xs text-gray-800">{ch}</td>
-                              {varyKeys.map((k) => {
-                                const cell = varies[k]?.[ch];
-                                let display: string = '';
-                                if (cell == null) display = '';
-                                else if (typeof cell === 'object' && cell !== null && 'type' in cell && 'value' in cell) {
-                                  // Scalar object with type/value (e.g., {type: 'int', value: 128})
-                                  display = String((cell as any).value);
-                                } else if (typeof cell === 'object' && cell !== null && 'unique_count' in cell) {
-                                  // Distribution object → show representative value if unique_count == 1
-                                  const uc = (cell as any).unique_count;
-                                  if (uc === 1) {
-                                    const vals = (cell as any).values || [];
-                                    const first = vals[0]?.value;
-                                    if (first && typeof first === 'object' && 'type' in first && 'value' in first) display = String(first.value);
-                                    else display = String(first ?? '');
-                                  } else {
-                                    display = '…';
-                                  }
-                                } else {
-                                  display = String(cell);
-                                }
-                                return <td key={k} className="px-2 py-1 align-top">{display}</td>;
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Available IR Files */}
         <div>
