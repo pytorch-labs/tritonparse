@@ -3,7 +3,6 @@ import ArgumentViewer from "../components/ArgumentViewer";
 import DiffViewer from "../components/DiffViewer";
 import { ProcessedKernel } from "../utils/dataLoader";
 import ToggleSwitch from "../components/ToggleSwitch";
-import AutotuneAnalysis from "../components/AutotuneAnalysis";
 
 interface KernelOverviewProps {
   /** A list of all processed kernels available for viewing. */
@@ -12,8 +11,6 @@ interface KernelOverviewProps {
   selectedKernel: number;
   /** Callback function to handle kernel selection. */
   onSelectKernel: (index: number) => void;
-  /** Callback function to handle kernel selection by hash. */
-  onSelectKernelByHash: (hash: string) => void;
   /** Callback function to handle viewing an IR file. */
   onViewIR: (irType: string) => void;
 }
@@ -90,7 +87,6 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
   kernels,
   selectedKernel,
   onSelectKernel,
-  onSelectKernelByHash,
   onViewIR,
 }) => {
   // State for controlling the sticky and collapsed behavior of the kernel selector
@@ -204,18 +200,6 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
         <h2 className="text-xl font-semibold mb-4 text-gray-800">
           Kernel Details: {kernel.name}
         </h2>
-
-        {/* Autotune Analysis Section */}
-        {kernel.autotuneAnalyses && kernel.autotuneAnalyses.length > 0 && (
-          kernel.autotuneAnalyses.map((analysis, index) => (
-            <AutotuneAnalysis
-              key={index}
-              analysis={analysis}
-              currentKernelHash={kernel.metadata.hash}
-              onSelectKernel={onSelectKernelByHash}
-            />
-          ))
-        )}
 
         {/* Metadata Section */}
         {kernel.metadata && (
@@ -373,7 +357,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
           <h3 className="text-lg font-medium mb-2 text-gray-800">
             Compilation Stack Trace
           </h3>
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto resize-y h-64 min-h-40 max-h-[80vh]">
+          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto max-h-64">
             {kernel.stack.map((entry, index) => (
               <div key={index} className="mb-1 font-mono text-sm">
                 <span className="text-blue-600">
