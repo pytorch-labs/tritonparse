@@ -301,12 +301,22 @@ def _generate_autotune_analysis_events(
         if not output_file:
             continue
 
+        # Resolve winner_compilation_hash from selected launch_group_hash (if available)
+        winner_compilation_hash = None
+        selected_launch_group_hash = autotune_winners.get(session_id)
+        if selected_launch_group_hash and selected_launch_group_hash in launch_by_group_hash:
+            selected_launch_event = launch_by_group_hash.get(selected_launch_group_hash, {})
+            winner_compilation_hash = (
+                selected_launch_event.get("compilation_metadata", {}).get("hash")
+            )
+
         analysis_event = {
             "event_type": "autotune_analysis",
             "session_id": session_id,
             "session_stack": session_stacks.get(session_id, []),
             "name": name,
             "selected_hash": autotune_winners.get(session_id),
+            "winner_compilation_hash": winner_compilation_hash,
             "compilation_analysis": compilation_analysis,
             "launch_analysis": launch_analysis,
             "cache_usage": compilation_analysis is None,
