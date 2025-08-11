@@ -239,6 +239,38 @@ export interface ProcessedKernel {
     pythonSourceInfo?: PythonSourceCodeInfo; // Python source code information
     metadata?: KernelMetadata; // Compilation metadata
     launchDiff?: LogEntry; // Aggregated launch event differences
+    autotuneSessions?: AutotuneAnalysisEvent[]; // Autotune analysis sessions associated with this kernel
+}
+
+/** Autotune configs summary structure */
+export interface AutotuneConfigs {
+    sames?: Record<string, any>;
+    varies?: Record<string, any>;
+}
+
+/** Autotune args summary structure */
+export interface AutotuneArgsSummary {
+    summary_version?: number;
+    unchanged_args?: Record<string, any>;
+    per_config_args?: Record<string, any>;
+    arg_order?: string[];
+    autotune_configs?: AutotuneConfigs;
+}
+
+/** Autotune analysis event structure */
+export interface AutotuneAnalysisEvent {
+    event_type: "autotune_analysis";
+    session_id: string;
+    name?: string;
+    occurrence_id?: number;
+    selected_hash?: string;
+    winner_compilation_hash?: string | null;
+    compilation_analysis?: {
+        compilation_hashes?: string[];
+        [key: string]: any;
+    } | null;
+    autotune_args_summary?: AutotuneArgsSummary | null;
+    [key: string]: any;
 }
 
 /**
@@ -458,6 +490,38 @@ export function processKernelData(logEntries: LogEntry[]): ProcessedKernel[] {
             } else {
                 console.warn(`Could not find matching kernel for launch_diff hash: ${hash}`);
             }
+        }
+    }
+
+    // Third pass: attach autotune_analysis sessions to related kernels
+    for (const raw of logEntries) {
+        if ((raw as any).event_type === "autotune_analysis") {
+            const ev = raw as unknown as AutotuneAnalysisEvent;
+            const compHashes = ev.compilation_analysis?.compilation_hashes || [];
+            if (!Array.isArray(compHashes) || compHashes.length === 0) {
+                continue;
+            }
+            for (const h of compHashes) {
+                const k = kernelsByHash.get(h);
+                if (!k) {
+                    continue;
+                }
+                if (!k.autotuneSessions) {
+                    k.autotuneSessions = [];
+                }
+                k.autotuneSessions.push(ev);
+            }
+        }
+    }
+
+    // Optionally sort sessions by occurrence_id for stable display
+    for (const k of kernelsByHash.values()) {
+        if (k.autotuneSessions && k.autotuneSessions.length > 1) {
+            k.autotuneSessions.sort((a, b) => {
+                const ao = a.occurrence_id ?? Number.MAX_SAFE_INTEGER;
+                const bo = b.occurrence_id ?? Number.MAX_SAFE_INTEGER;
+                return ao - bo;
+            });
         }
     }
 

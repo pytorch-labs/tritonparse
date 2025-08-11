@@ -259,6 +259,92 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
           </div>
         )}
 
+        {/* Autotune Analysis */}
+        {kernel.autotuneSessions && kernel.autotuneSessions.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-medium mb-2 text-gray-800">Autotune Analysis</h3>
+            <div className="space-y-4">
+              {kernel.autotuneSessions.map((session, idx) => {
+                const sess = session as any;
+                const winner = sess.winner_compilation_hash as string | undefined;
+                const compHashes: string[] = sess?.compilation_analysis?.compilation_hashes || [];
+                const cfgs = sess?.autotune_args_summary?.autotune_configs || {};
+                const sames = cfgs.sames || {};
+                const varies = cfgs.varies || {};
+                const varyKeys = Object.keys(varies);
+                return (
+                  <div key={idx} className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <div className="mb-2 text-sm text-gray-700">
+                      <span className="font-semibold">Session:</span> {sess.session_id}
+                      {sess.selected_hash && (
+                        <span className="ml-3">Selected: <span className="font-mono">{sess.selected_hash}</span></span>
+                      )}
+                      {winner && (
+                        <span className="ml-3">Winner Compilation: <span className="font-mono">{winner}</span></span>
+                      )}
+                    </div>
+                    {/* Sames inline text */}
+                    {Object.keys(sames).length > 0 && (
+                      <div className="mb-3 text-sm text-gray-700">
+                        <span className="font-semibold mr-2">Common Params:</span>
+                        {Object.entries(sames).map(([k, v], i) => (
+                          <span key={k} className="mr-4">
+                            <span className="text-gray-600">{k}:</span> <span className="font-mono">{typeof v === 'object' ? '…' : String(v)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Varies table: rows = compilation hashes, cols = varyKeys */}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-600">
+                            <th className="px-2 py-1 w-56">Compilation Hash</th>
+                            {varyKeys.map((k) => (
+                              <th key={k} className="px-2 py-1">{k}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {compHashes.map((ch) => (
+                            <tr key={ch} className={`${winner && ch === winner ? 'bg-yellow-50' : ''}`}>
+                              <td className="px-2 py-1 font-mono text-xs text-gray-800">{ch}</td>
+                              {varyKeys.map((k) => {
+                                const cell = varies[k]?.[ch];
+                                let display: string = '';
+                                if (cell == null) display = '';
+                                else if (typeof cell === 'object' && cell !== null && 'type' in cell && 'value' in cell) {
+                                  // Scalar object with type/value (e.g., {type: 'int', value: 128})
+                                  display = String((cell as any).value);
+                                } else if (typeof cell === 'object' && cell !== null && 'unique_count' in cell) {
+                                  // Distribution object → show representative value if unique_count == 1
+                                  const uc = (cell as any).unique_count;
+                                  if (uc === 1) {
+                                    const vals = (cell as any).values || [];
+                                    const first = vals[0]?.value;
+                                    if (first && typeof first === 'object' && 'type' in first && 'value' in first) display = String(first.value);
+                                    else display = String(first ?? '');
+                                  } else {
+                                    display = '…';
+                                  }
+                                } else {
+                                  display = String(cell);
+                                }
+                                return <td key={k} className="px-2 py-1 align-top">{display}</td>;
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Launch Analysis Section */}
         {kernel.launchDiff && (
           <div className="mb-6">
@@ -277,7 +363,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                   <h4 className="text-md font-semibold mb-2 text-gray-800">
                     Launch Locations in Original Trace{" "}
                     <span className="text-sm font-normal text-gray-500">
-                      (1-based line numbers)
+                      (0-based occurrence ids)
                     </span>
                   </h4>
                   <div className="font-mono text-sm bg-gray-100 p-2 rounded">
@@ -288,6 +374,23 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                           : `${r.start}-${r.end}`
                       )
                       .join(", ")}
+                  </div>
+                </div>
+              )}
+
+              {/* Launch Stack Traces (from launch diff sames.stack if present) */}
+              {kernel.launchDiff.sames && (kernel.launchDiff.sames as any).stack && (
+                <div className="mb-4">
+                  <h4 className="text-md font-semibold mb-2 text-gray-800">Launch Stack Traces</h4>
+                  <div className="bg-white p-3 rounded-md border border-gray-200 overflow-auto max-h-64">
+                    {((kernel.launchDiff.sames as any).stack as any[]).map((entry: any, index: number) => (
+                      <div key={index} className="mb-1 font-mono text-sm">
+                        <span className="text-blue-600">{getSourceFilePath(entry)}</span>
+                        :<span className="text-red-600">{entry.line}</span> -
+                        <span className="text-green-600">{entry.name}</span> -
+                        <span className="text-gray-700">{entry.loc}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -352,12 +455,10 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
           </div>
         )}
 
-        {/* Stack Trace */}
+        {/* Compilation Stack Trace */}
         <div className="mb-4">
-          <h3 className="text-lg font-medium mb-2 text-gray-800">
-            Compilation Stack Trace
-          </h3>
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto max-h-64">
+          <h3 className="text-lg font-medium mb-2 text-gray-800">Compilation Stack Trace</h3>
+          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto resize-y h-64 min-h-24">
             {kernel.stack.map((entry, index) => (
               <div key={index} className="mb-1 font-mono text-sm">
                 <span className="text-blue-600">
@@ -370,6 +471,92 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Autotune Sessions */}
+        {kernel.autotuneSessions && kernel.autotuneSessions.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-medium mb-2 text-gray-800">Autotune Analysis</h3>
+            <div className="space-y-4">
+              {kernel.autotuneSessions.map((session, idx) => {
+                const sess = session as any;
+                const winner = sess.winner_compilation_hash as string | undefined;
+                const compHashes: string[] = sess?.compilation_analysis?.compilation_hashes || [];
+                const cfgs = sess?.autotune_args_summary?.autotune_configs || {};
+                const sames = cfgs.sames || {};
+                const varies = cfgs.varies || {};
+                const varyKeys = Object.keys(varies);
+                return (
+                  <div key={idx} className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <div className="mb-2 text-sm text-gray-700">
+                      <span className="font-semibold">Session:</span> {sess.session_id}
+                      {sess.selected_hash && (
+                        <span className="ml-3">Selected: <span className="font-mono">{sess.selected_hash}</span></span>
+                      )}
+                      {winner && (
+                        <span className="ml-3">Winner Compilation: <span className="font-mono">{winner}</span></span>
+                      )}
+                    </div>
+                    {/* Sames inline text */}
+                    {Object.keys(sames).length > 0 && (
+                      <div className="mb-3 text-sm text-gray-700">
+                        <span className="font-semibold mr-2">Common Params:</span>
+                        {Object.entries(sames).map(([k, v], i) => (
+                          <span key={k} className="mr-4">
+                            <span className="text-gray-600">{k}:</span> <span className="font-mono">{typeof v === 'object' ? '…' : String(v)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Varies table: rows = compilation hashes, cols = varyKeys */}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-600">
+                            <th className="px-2 py-1 w-56">Compilation Hash</th>
+                            {varyKeys.map((k) => (
+                              <th key={k} className="px-2 py-1">{k}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {compHashes.map((ch) => (
+                            <tr key={ch} className={`${winner && ch === winner ? 'bg-yellow-50' : ''}`}>
+                              <td className="px-2 py-1 font-mono text-xs text-gray-800">{ch}</td>
+                              {varyKeys.map((k) => {
+                                const cell = varies[k]?.[ch];
+                                let display: string = '';
+                                if (cell == null) display = '';
+                                else if (typeof cell === 'object' && cell !== null && 'type' in cell && 'value' in cell) {
+                                  // Scalar object with type/value (e.g., {type: 'int', value: 128})
+                                  display = String((cell as any).value);
+                                } else if (typeof cell === 'object' && cell !== null && 'unique_count' in cell) {
+                                  // Distribution object → show representative value if unique_count == 1
+                                  const uc = (cell as any).unique_count;
+                                  if (uc === 1) {
+                                    const vals = (cell as any).values || [];
+                                    const first = vals[0]?.value;
+                                    if (first && typeof first === 'object' && 'type' in first && 'value' in first) display = String(first.value);
+                                    else display = String(first ?? '');
+                                  } else {
+                                    display = '…';
+                                  }
+                                } else {
+                                  display = String(cell);
+                                }
+                                return <td key={k} className="px-2 py-1 align-top">{display}</td>;
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Available IR Files */}
         <div>

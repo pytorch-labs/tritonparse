@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 from .sourcemap_utils import _flatten_dict, _to_ranges, _unflatten_dict
 
 # Fields that are expected to vary but are not useful to list out in the diff.
-SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr"]
+SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr", "occurrence_id"]
 
 
 def _generate_autotune_analysis_events(
@@ -361,6 +361,9 @@ def _generate_launch_diff(
     diffs_flat = {}
 
     for key, value_groups in data_by_key.items():
+        # Completely ignore occurrence_id in diffs/sames
+        if "occurrence_id" in key:
+            continue
         if len(value_groups) == 1:
             # This key has the same value across all launches
             value_str = list(value_groups.keys())[0]
