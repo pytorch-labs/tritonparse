@@ -222,7 +222,9 @@ def parse_single_file(
     compilations_by_hash = defaultdict(
         lambda: {"compilation": None, "launches": [], "output_file": None}
     )
-    autotune_sessions = defaultdict(lambda: {"compilations": [], "launches": []})
+    autotune_sessions = defaultdict(
+        lambda: {"compilations": [], "launch_group_hashes": set()}
+    )
     autotune_winners = {}  # session_id -> winning_hash
     session_stacks = {}  # session_id -> user_stack
     launch_by_group_hash = {}  # launch_group_hash -> launch_event
@@ -312,7 +314,9 @@ def parse_single_file(
                 session_id, user_stack = get_autotune_session_id(stack)
                 if session_id:
                     # Add launch group hash to autotune sessions for complete analysis
-                    autotune_sessions[session_id]["launches"].append(launch_group_hash)
+                    autotune_sessions[session_id]["launch_group_hashes"].add(
+                        launch_group_hash
+                    )
                     # Store the user stack for this session
                     if user_stack and session_id not in session_stacks:
                         session_stacks[session_id] = user_stack
@@ -323,12 +327,9 @@ def parse_single_file(
                     )
 
                     # Check if this is a winning autotune launch (not a benchmark)
-                    if not _is_autotune_benchmark_launch(stack):
-                        winning_hash = parsed_json.get("compilation_metadata", {}).get(
-                            "hash"
-                        )
-                        if winning_hash:
-                            autotune_winners[session_id] = winning_hash
+                    # Record the launch group hash as the winner for this session
+                    if not _is_autotune_benchmark_launch(stack) and session_id:
+                        autotune_winners[session_id] = launch_group_hash
 
     # Organize lines for final output, keyed by output file path
     all_output_lines = defaultdict(list)

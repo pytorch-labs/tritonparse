@@ -1,5 +1,6 @@
 import json
 from collections import defaultdict
+from collections import OrderedDict
 from typing import Any, Dict, List, Tuple
 
 from .sourcemap_utils import _flatten_dict, _to_ranges, _unflatten_dict
@@ -9,7 +10,7 @@ SUMMARY_FIELDS = ["pid", "timestamp", "stream", "function", "data_ptr"]
 
 
 def _generate_autotune_analysis_events(
-    autotune_sessions: Dict[str, Dict[str, List]],
+    autotune_sessions: Dict[str, Dict[str, Any]],
     autotune_winners: Dict[str, str],
     compilations_by_hash: Dict[str, Any],
     session_stacks: Dict[str, List[Dict[str, Any]]],
@@ -19,7 +20,7 @@ def _generate_autotune_analysis_events(
     Generates autotune_analysis events from grouped compilation sessions.
 
     Args:
-        autotune_sessions: Dict mapping session_id to {"compilations": [...], "launches": [...]}.
+        autotune_sessions: Dict mapping session_id to {"compilations": [...], "launch_group_hashes": set([...])}.
         autotune_winners: Dict mapping session_id to the winning kernel hash.
         compilations_by_hash: Dict containing processed kernel data, used to find output files.
         session_stacks: Dict mapping session_id to the user call stack.
@@ -35,10 +36,15 @@ def _generate_autotune_analysis_events(
 
         # Get compilation and launch data
         compilation_events = session_data["compilations"]
-        launch_hashes = session_data["launches"]
+        launch_group_hashes = session_data.get("launch_group_hashes", set())
+        # Convert to a deterministically ordered list for downstream analysis and JSON serialization
+        launch_group_hashes = sorted(
+            list(launch_group_hashes),
+            key=lambda h: launch_by_group_hash.get(h, {}).get("occurrence_id", 0),
+        )
 
         # Skip sessions with neither compilations nor launches
-        if not compilation_events and not launch_hashes:
+        if not compilation_events and not launch_group_hashes:
             continue
 
         # Analyze compilation events (if any)
@@ -90,18 +96,99 @@ def _generate_autotune_analysis_events(
 
         # Analyze launch events (if any)
         launch_analysis = None
-        if launch_hashes:
+        autotune_args_summary = None
+        if launch_group_hashes:
             launch_params_diff = _analyze_launch_params(
-                launch_hashes, launch_by_group_hash
+                launch_group_hashes, launch_by_group_hash
             )
+
+            # Build autotune_args_summary with full distributions and no truncation
+            # unchanged_args are taken as-is from sames.extracted_args
+            sames_args = (
+                launch_params_diff.get("sames", {}).get("extracted_args", {})
+                if isinstance(launch_params_diff, dict)
+                else {}
+            )
+
+            # Aggregate full value distributions per compilation config (compilation_metadata.hash)
+            per_config_aggregates: Dict[str, Dict[str, Dict[str, Dict[str, Any]]]] = {}
+            arg_first_seen_order: OrderedDict[str, None] = OrderedDict()
+
+            for idx, h in enumerate(launch_group_hashes):
+                ev = launch_by_group_hash.get(h, {})
+                if not isinstance(ev, dict):
+                    continue
+                comp_hash = ev.get("compilation_metadata", {}).get("hash")
+                if not comp_hash:
+                    continue
+                extracted = ev.get("extracted_args", {}) or {}
+
+                # Record stable argument order by first appearance (session-level)
+                for arg_name in extracted.keys():
+                    if arg_name not in arg_first_seen_order:
+                        arg_first_seen_order[arg_name] = None
+
+                # Aggregate distributions per config
+                config_bucket = per_config_aggregates.setdefault(comp_hash, {})
+                for arg_name, arg_val in extracted.items():
+                    try:
+                        value_key = json.dumps(arg_val, sort_keys=True)
+                    except TypeError:
+                        value_key = json.dumps(str(arg_val))
+                    arg_bucket = config_bucket.setdefault(arg_name, {})
+                    if value_key not in arg_bucket:
+                        arg_bucket[value_key] = {"value": arg_val, "count": 1, "_first": idx}
+                    else:
+                        arg_bucket[value_key]["count"] += 1
+
+            # Build per-config varied args with full values (no truncation). Keep singletons so每个config都可见
+            per_config_varied_args: Dict[str, Any] = {}
+            for comp_hash, arg_map in per_config_aggregates.items():
+                cfg_varied: Dict[str, Any] = {}
+                for arg_name, grouped in arg_map.items():
+                    entries = list(grouped.values())
+                    # Sort by count desc, then by first occurrence for stability
+                    entries.sort(key=lambda d: (-d["count"], d["_first"]))
+                    for e in entries:
+                        e.pop("_first", None)
+                    cfg_varied[arg_name] = {
+                        "unique_count": len(entries),
+                        "values": entries,
+                    }
+                per_config_varied_args[comp_hash] = {"varied_args": cfg_varied}
+
+            # Build a stable arg order from first appearance across the session
+            arg_order = list(arg_first_seen_order.keys())
+            remaining = set(sames_args.keys())
+            for cfg in per_config_varied_args.values():
+                remaining.update(cfg.get("varied_args", {}).keys())
+            for name in arg_order:
+                remaining.discard(name)
+            if remaining:
+                arg_order.extend(sorted(remaining))
+
+            # Attach config_params for each compilation hash if available
+            if compilation_analysis and "configs" in compilation_analysis:
+                for entry in compilation_analysis["configs"]:
+                    ch = entry.get("compilation_hash")
+                    if ch and ch in per_config_varied_args:
+                        per_config_varied_args[ch]["config_params"] = entry.get("config_params")
+
+            autotune_args_summary = {
+                "summary_version": 1,
+                "unchanged_args": sames_args,
+                "per_config_varied_args": per_config_varied_args,
+                "arg_order": arg_order,
+            }
+
             launch_analysis = {
-                "launch_hashes": launch_hashes,
+                "launch_group_hashes": launch_group_hashes,
                 "launch_params_diff": launch_params_diff,
             }
 
             # If no output_file from compilation, try to get it from first launch
-            if not output_file and launch_hashes:
-                first_launch_hash = launch_hashes[0]
+            if not output_file and launch_group_hashes:
+                first_launch_hash = launch_group_hashes[0]
                 if first_launch_hash in launch_by_group_hash:
                     first_launch = launch_by_group_hash[first_launch_hash]
                     kernel_hash = first_launch.get("compilation_metadata", {}).get(
@@ -130,8 +217,9 @@ def _generate_autotune_analysis_events(
             "compilation_analysis": compilation_analysis,
             "launch_analysis": launch_analysis,
             "cache_usage": compilation_analysis is None,
-            "launch_count": len(launch_hashes),
         }
+        if autotune_args_summary is not None:
+            analysis_event["autotune_args_summary"] = autotune_args_summary
         output_events[output_file].append(
             json.dumps(analysis_event, separators=(",", ":")) + "\n"
         )
@@ -251,25 +339,25 @@ def _generate_launch_diff(
 
 
 def _analyze_launch_params(
-    launch_hashes: List[str], launch_by_group_hash: Dict[str, Any]
+    launch_group_hashes: List[str], launch_by_group_hash: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Analyze launch parameters to find what's the same and what differs across launches.
 
     Args:
-        launch_hashes: List of launch hashes for this session
+        launch_group_hashes: List of launch hashes for this session
         launch_by_group_hash: Dict mapping launch_group_hash to launch_event data
 
     Returns:
         Dict with 'sames' and 'diffs' keys containing parameter analysis
     """
-    if not launch_hashes:
+    if not launch_group_hashes:
         return {"sames": {}, "diffs": {}}
 
     # Build input format similar to _generate_launch_diff
     launches_with_indices = []
-    # TODO: the i here is not the index in the original launch_events, but rather the index in the launch_hashes. This should be fixed in the future if we want to use the index for anything meaningful.
-    for i, launch_hash in enumerate(launch_hashes):
+    # TODO: the i here is not the index in the original launch_events, but rather the index in the launch_group_hashes. This should be fixed in the future if we want to use the index for anything meaningful.
+    for i, launch_hash in enumerate(launch_group_hashes):
         if launch_hash in launch_by_group_hash:
             launch_event = launch_by_group_hash[launch_hash]
             launches_with_indices.append((launch_event, i))

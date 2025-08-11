@@ -605,8 +605,8 @@ class TestTritonparseCUDA(unittest.TestCase):
         # Kernel 1: Vector Addition
         @triton.autotune(
             configs=[
-                triton.Config({"BLOCK_SIZE": 128}, num_warps=4),
-                triton.Config({"BLOCK_SIZE": 1024}, num_warps=8),
+                triton.Config({"BLOCK_SIZE": 128, "ADD_K": 0}, num_warps=4),
+                triton.Config({"BLOCK_SIZE": 1024, "ADD_K": 1}, num_warps=8),
             ],
             key=["n_elements"],
         )
@@ -617,6 +617,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             output_ptr,
             n_elements,
             BLOCK_SIZE: tl.constexpr,
+            ADD_K: tl.constexpr,
         ):
             pid = tl.program_id(axis=0)
             block_start = pid * BLOCK_SIZE
@@ -624,7 +625,7 @@ class TestTritonparseCUDA(unittest.TestCase):
             mask = offsets < n_elements
             x = tl.load(x_ptr + offsets, mask=mask)
             y = tl.load(y_ptr + offsets, mask=mask)
-            output = x + y
+            output = x + y + ADD_K
             tl.store(output_ptr + offsets, output, mask=mask)
 
         # Kernel 2: Vector Scaling
