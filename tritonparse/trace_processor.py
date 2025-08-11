@@ -242,6 +242,8 @@ def parse_single_file(
         file_name_without_extension = (
             file_name[:-11] if is_compressed_input else os.path.splitext(file_name)[0]
         )
+        # Global occurrence id counter across all outputs
+        next_occurrence_id: int = 0
 
         for i, line in enumerate(f):
             logger.debug(f"Processing line {i + 1} in {file_path}")
@@ -289,8 +291,9 @@ def parse_single_file(
 
                 output_file = os.path.join(output_dir, fname)
                 # The full processing is deferred until the final write.
-                # Record occurrence_id for traceability on compilation event
-                parsed_json["occurrence_id"] = i
+                # Assign a global occurrence_id to this compilation event now
+                parsed_json["occurrence_id"] = next_occurrence_id
+                next_occurrence_id += 1
                 compilations_by_hash[kernel_hash]["compilation"] = json.dumps(
                     parsed_json, separators=(",", ":")
                 )
@@ -304,8 +307,9 @@ def parse_single_file(
                 launch_group_hash = compute_launch_event_hash(parsed_json)
                 # Add group hash to the launch event itself for traceability
                 parsed_json["launch_group_hash"] = launch_group_hash
-                # Also record the occurrence id (global trace index) for uniqueness
-                parsed_json["occurrence_id"] = i
+                # Assign a global occurrence_id to this launch event now
+                parsed_json["occurrence_id"] = next_occurrence_id
+                next_occurrence_id += 1
                 # Store by group/content hash
                 launch_by_group_hash[launch_group_hash] = parsed_json
 
@@ -348,6 +352,7 @@ def parse_single_file(
             processed_compilation_line = parse_single_trace_content(
                 compilation_json_str
             )
+            # Append the processed compilation line as-is; it already contains occurrence_id
             all_output_lines[output_file].append(processed_compilation_line)
             compilation_event = json.loads(processed_compilation_line)
         else:
@@ -373,6 +378,9 @@ def parse_single_file(
                 "diffs": diffs,
                 "sames": sames,
             }
+            # Assign global occurrence_id to the aggregated launch_diff event
+            launch_diff_event["occurrence_id"] = next_occurrence_id
+            next_occurrence_id += 1
             all_output_lines[output_file].append(
                 json.dumps(launch_diff_event, separators=(",", ":")) + "\n"
             )
@@ -386,7 +394,13 @@ def parse_single_file(
         launch_by_group_hash,
     )
     for output_file, events in autotune_events_by_file.items():
-        all_output_lines[output_file].extend(events)
+        for ev_str in events:
+            ev = json.loads(ev_str)
+            ev["occurrence_id"] = next_occurrence_id
+            next_occurrence_id += 1
+            all_output_lines[output_file].append(
+                json.dumps(ev, separators=(",", ":")) + "\n"
+            )
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
