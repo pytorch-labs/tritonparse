@@ -66,17 +66,15 @@ def _generate_autotune_analysis_events(
                 for comp in compilation_events:
                     meta = comp.get("payload", {}).get("metadata", {})
                     compilation_hashes.append(meta.get("hash"))
-                    # TODO: the config params should be more complete
-                    config_params = {
-                        "num_warps": meta.get("num_warps"),
-                        "num_stages": meta.get("num_stages"),
-                    }
-                    # TODO: src_constants don't have too much name info, we should add more info
-                    if "src_constants" in meta:
-                        config_params.update(meta["src_constants"])
+                    # Collect selected config params only when present in metadata
+                    compilation_config_params = {}
+                    for key in ("num_warps", "num_stages", "num_ctas", "maxnreg"):
+                        value = meta.get(key)
+                        if value is not None:
+                            compilation_config_params[key] = value
                     configs.append(
                         {
-                            "config_params": config_params,
+                            "compilation_config_params": compilation_config_params,
                             "compilation_hash": meta.get("hash"),
                         }
                     )
@@ -142,43 +140,138 @@ def _generate_autotune_analysis_events(
                         arg_bucket[value_key]["count"] += 1
 
             # Build per-config varied args with full values (no truncation). Keep singletons so每个config都可见
-            per_config_varied_args: Dict[str, Any] = {}
+            # Per-config arguments and compilation params
+            per_config_args: Dict[str, Any] = {}
             for comp_hash, arg_map in per_config_aggregates.items():
-                cfg_varied: Dict[str, Any] = {}
+                per_config_entry: Dict[str, Any] = {}
                 for arg_name, grouped in arg_map.items():
                     entries = list(grouped.values())
                     # Sort by count desc, then by first occurrence for stability
                     entries.sort(key=lambda d: (-d["count"], d["_first"]))
                     for e in entries:
                         e.pop("_first", None)
-                    cfg_varied[arg_name] = {
+                    per_config_entry[arg_name] = {
                         "unique_count": len(entries),
                         "values": entries,
                     }
-                per_config_varied_args[comp_hash] = {"varied_args": cfg_varied}
+                per_config_args[comp_hash] = per_config_entry
 
             # Build a stable arg order from first appearance across the session
             arg_order = list(arg_first_seen_order.keys())
             remaining = set(sames_args.keys())
-            for cfg in per_config_varied_args.values():
-                remaining.update(cfg.get("varied_args", {}).keys())
+            for cfg in per_config_args.values():
+                remaining.update(cfg.keys())
             for name in arg_order:
                 remaining.discard(name)
             if remaining:
                 arg_order.extend(sorted(remaining))
 
-            # Attach config_params for each compilation hash if available
+            # Attach compilation_config_params for each compilation hash if available
             if compilation_analysis and "configs" in compilation_analysis:
                 for entry in compilation_analysis["configs"]:
                     ch = entry.get("compilation_hash")
-                    if ch and ch in per_config_varied_args:
-                        per_config_varied_args[ch]["config_params"] = entry.get("config_params")
+                    if ch and ch in per_config_args:
+                        per_config_args[ch]["compilation_config_params"] = entry.get("compilation_config_params")
+
+            # Build autotune_configs summary across configs
+            def _is_tensor_value(val: Any) -> bool:
+                try:
+                    return isinstance(val, dict) and val.get("type") == "tensor"
+                except Exception:
+                    return False
+
+            autotune_configs: Dict[str, Any] = {"sames": {}, "varies": {}}
+
+            config_hashes = list(per_config_args.keys())
+
+            # Summarize compilation_config_params
+            all_comp_param_keys = set()
+            for ch in config_hashes:
+                comp_params = per_config_args.get(ch, {}).get("compilation_config_params", {}) or {}
+                all_comp_param_keys.update(comp_params.keys())
+
+            for key in sorted(all_comp_param_keys):
+                values_by_ch = {}
+                all_equal = True
+                baseline = None
+                for ch in config_hashes:
+                    comp_params = per_config_args.get(ch, {}).get("compilation_config_params", {}) or {}
+                    v = comp_params.get(key, None)
+                    values_by_ch[ch] = v
+                    if baseline is None:
+                        baseline = v
+                    if v != baseline:
+                        all_equal = False
+                if all_equal:
+                    autotune_configs["sames"][key] = baseline
+                else:
+                    autotune_configs["varies"][key] = values_by_ch
+
+            # Summarize per-config args (filter out tensor args)
+            reserved_per_config_keys = {"compilation_config_params"}
+            all_launch_arg_names = set()
+            for ch in config_hashes:
+                la = per_config_args.get(ch, {}) or {}
+                for k in la.keys():
+                    if k not in reserved_per_config_keys:
+                        all_launch_arg_names.add(k)
+
+            for arg_name in sorted(all_launch_arg_names):
+                # Skip tensor args entirely (drop from autotune_configs if any config shows tensor values)
+                tensor_found_anywhere = False
+                for ch in config_hashes:
+                    la = per_config_args.get(ch, {}) or {}
+                    dist = la.get(arg_name)
+                    if not dist:
+                        continue
+                    for ve in (dist.get("values") or []):
+                        if _is_tensor_value(ve.get("value")):
+                            tensor_found_anywhere = True
+                            break
+                    if tensor_found_anywhere:
+                        break
+                if tensor_found_anywhere:
+                    continue
+                single_values_by_ch = {}
+                all_single_and_equal = True
+                baseline_val = None
+                for ch in config_hashes:
+                    la = per_config_args.get(ch, {}).get("launch_args", {}) or {}
+                    dist = la.get(arg_name)
+                    if not dist or not isinstance(dist, dict) or dist.get("unique_count") != 1:
+                        all_single_and_equal = False
+                        single_values_by_ch[ch] = None
+                        continue
+                    v = (dist.get("values") or [{}])[0].get("value")
+                    single_values_by_ch[ch] = v
+                    if baseline_val is None:
+                        baseline_val = v
+                    if v != baseline_val:
+                        all_single_and_equal = False
+                if all_single_and_equal and baseline_val is not None:
+                    autotune_configs["sames"][arg_name] = baseline_val
+                else:
+                    # Build per-config view, include representative info
+                    per_ch_view = {}
+                    for ch in config_hashes:
+                        la = per_config_args.get(ch, {}) or {}
+                        dist = la.get(arg_name)
+                        if not dist:
+                            per_ch_view[ch] = None
+                            continue
+                        if dist.get("unique_count") == 1:
+                            v = (dist.get("values") or [{}])[0].get("value")
+                            per_ch_view[ch] = v if not _is_tensor_value(v) else None
+                        else:
+                            per_ch_view[ch] = {"unique_count": dist.get("unique_count"), "values": dist.get("values")}
+                    autotune_configs["varies"][arg_name] = per_ch_view
 
             autotune_args_summary = {
                 "summary_version": 1,
                 "unchanged_args": sames_args,
-                "per_config_varied_args": per_config_varied_args,
+                "per_config_args": per_config_args,
                 "arg_order": arg_order,
+                "autotune_configs": autotune_configs,
             }
 
             launch_analysis = {
