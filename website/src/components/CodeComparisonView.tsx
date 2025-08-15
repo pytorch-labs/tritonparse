@@ -8,7 +8,7 @@ import {
     SourceMapping,
     getIRType,
 } from "../utils/dataLoader";
-import { getDisplayLanguage } from "./TritonIRs";
+import { getDisplayLanguage } from "../utils/languageUtils";
 
 /**
  * Props for a single code panel
@@ -118,7 +118,7 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
 
             return [];
         },
-        [py_code_info, py_code]
+        [py_code_info, py_code, py_file_path, py_start_line]
     );
 
     /**
@@ -188,7 +188,7 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
                 setTargetHighlightedLines([]);
             }
         },
-        [leftPanel_data.content, rightPanel_data.content]
+        []
     );
 
     /**
@@ -298,7 +298,11 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
                         setRightHighlightedLines(irLines.map(Number));
                     }
                 } else {
-                    panel === 'left' ? setLeftHighlightedLines([]) : setRightHighlightedLines([]);
+                    if (panel === 'left') {
+                        setLeftHighlightedLines([]);
+                    } else {
+                        setRightHighlightedLines([]);
+                    }
                 }
             };
 

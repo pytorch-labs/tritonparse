@@ -71,7 +71,7 @@ export interface KernelMetadata {
     enable_fp_fusion?: boolean;
     launch_cooperative_grid?: boolean;
     supported_fp8_dtypes?: string[];
-    [key: string]: any; // For other metadata properties
+    [key: string]: unknown; // For other metadata properties
 }
 
 /**
@@ -85,7 +85,7 @@ export interface LaunchRange {
 /**
  * Distribution value with count and launch information
  */
-export interface DistributionValue<T = any> {
+export interface DistributionValue<T = unknown> {
     value: T;
     count: number;
     launches: LaunchRange[];
@@ -99,14 +99,14 @@ export interface SummaryDiff {
     summary_text: string;
 }
 
-export interface DistributionDiff<T = any> {
+export interface DistributionDiff<T = unknown> {
     diff_type: "distribution";
     values: DistributionValue<T>[];
 }
 
 export interface ArgumentDiff {
     diff_type: "argument_diff";
-    sames?: Record<string, any>;
+    sames?: Record<string, unknown>;
     diffs?: Record<string, SummaryDiff | DistributionDiff>;
 }
 
@@ -141,7 +141,7 @@ export interface CompilationMetadata {
     global_scratch_align?: number;
     global_scratch_size?: number;
     hash?: string;
-    ir_override?: any;
+    ir_override?: unknown;
     launch_cooperative_grid?: boolean;
     launch_pdl?: boolean;
     max_num_imprecise_acc_default?: number;
@@ -150,7 +150,7 @@ export interface CompilationMetadata {
     num_ctas?: number;
     num_stages?: number;
     num_warps?: number;
-    ptx_options?: any;
+    ptx_options?: unknown;
     ptx_version?: number | null;
     sanitize_overflow?: boolean;
     shared?: number;
@@ -160,11 +160,11 @@ export interface CompilationMetadata {
         arch?: number;
         warp_size?: number;
     };
-    tensordesc_meta?: any[];
+    tensordesc_meta?: unknown[];
     tmem_size?: number;
     triton_version?: string;
     warp_size?: number;
-    [key: string]: any; // Allow additional unknown fields
+    [key: string]: unknown; // Allow additional unknown fields
 }
 
 /**
@@ -172,9 +172,9 @@ export interface CompilationMetadata {
  */
 export interface ExtractedArg {
     type: string;
-    value?: any;
+    value?: unknown;
     length?: number;
-    [key: string]: any; // Allow additional unknown fields
+    [key: string]: unknown; // Allow additional unknown fields
 }
 
 /**
@@ -189,7 +189,7 @@ export interface LaunchSamesData {
     compilation_metadata?: CompilationMetadata;
     timestamp?: string;
     extracted_args?: Record<string, ExtractedArg>;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 /**
@@ -262,7 +262,7 @@ export function parseLogData(textData: string): LogEntry[] {
                 if (parsedLine && typeof parsedLine === 'object') {
                     entries.push(parsedLine);
                 }
-            } catch (e) {
+            } catch {
                 console.warn(`Failed to parse line as JSON: ${line.substring(0, 100)}...`);
                 // Continue processing other lines even if one fails
             }

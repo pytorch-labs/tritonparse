@@ -1,8 +1,31 @@
 import React, { useState } from 'react';
 import { isTensorArg, extractTensorMetadata, formatTensorSummary } from '../utils/tensor';
 
+interface LaunchRange {
+    start: number;
+    end: number;
+}
+
+interface DistributionValue {
+    value: unknown;
+    count: number;
+    launches: LaunchRange[];
+}
+
+interface DistributionData {
+    diff_type: 'distribution';
+    values: DistributionValue[];
+}
+
+interface SummaryData {
+    diff_type: 'summary';
+    summary_text: string;
+}
+
+type CellData = DistributionData | SummaryData | unknown;
+
 // Renders the value distribution (e.g., "16 (2 times, in launches: 1-2)")
-const DistributionCell: React.FC<{ data: any }> = ({ data }) => {
+const DistributionCell: React.FC<{ data: CellData }> = ({ data }) => {
     if (!data) return null;
     if (data.diff_type === 'summary') {
         return <span className="text-gray-500 italic">{data.summary_text}</span>;
@@ -10,9 +33,9 @@ const DistributionCell: React.FC<{ data: any }> = ({ data }) => {
     if (data.diff_type === 'distribution' && data.values) {
         return (
             <ul className="list-none m-0 p-0 space-y-1">
-                {data.values.map((item: any, index: number) => {
+                {data.values.map((item: DistributionValue, index: number) => {
                     const launchRanges = item.launches
-                        .map((r: any) => (r.start === r.end ? `${r.start + 1}` : `${r.start + 1}-${r.end + 1}`))
+                        .map((r: LaunchRange) => (r.start === r.end ? `${r.start + 1}` : `${r.start + 1}-${r.end + 1}`))
                         .join(', ');
                     return (
                         <li key={index}>
@@ -27,20 +50,34 @@ const DistributionCell: React.FC<{ data: any }> = ({ data }) => {
     return <span className="font-mono">{JSON.stringify(data)}</span>;
 };
 
+interface ArgumentDiff {
+    diff_type: "argument_diff";
+    sames: Record<string, unknown>;
+    diffs: Record<string, CellData>;
+}
+
+interface SimpleArgument {
+    type: string;
+    value: unknown;
+}
+
+type ArgumentData = ArgumentDiff | SimpleArgument;
+
 // Renders a single row in the ArgumentViewer table
 const ArgumentRow: React.FC<{
   argName: string;
-  argData: any;
+  argData: ArgumentData;
   isDiffViewer?: boolean;
 }> = ({ argName, argData, isDiffViewer = false }) => {
-    // Keep hooks unconditional to satisfy React rules of hooks
-    const [showDetails, setShowDetails] = useState(false);
-    const [isCollapsed, setIsCollapsed] = useState(false);
-    // Case 1: This is a complex argument with internal differences
-    if (isDiffViewer && argData.diff_type === "argument_diff") {
-        const { sames, diffs } = argData;
-        const hasSames = Object.keys(sames).length > 0;
-        const hasDiffs = Object.keys(diffs).length > 0;
+  // Keep hooks unconditional to satisfy React rules of hooks
+  const [showDetails, setShowDetails] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Case 1: This is a complex argument with internal differences
+  if (isDiffViewer && 'diff_type' in argData && argData.diff_type === "argument_diff") {
+    const { sames, diffs } = argData;
+    const hasSames = Object.keys(sames).length > 0;
+    const hasDiffs = Object.keys(diffs).length > 0;
 
         return (
             <div className="bg-gray-50 border-b border-gray-200 last:border-b-0">
@@ -242,13 +279,13 @@ const ArgumentRow: React.FC<{
 };
 
 // Main container component
-const ArgumentViewer: React.FC<{ args: Record<string, any>; isDiffViewer?: boolean; }> = ({ args, isDiffViewer = false }) => {
+const ArgumentViewer: React.FC<{ args: Record<string, ArgumentData>; isDiffViewer?: boolean; }> = ({ args, isDiffViewer = false }) => {
     if (!args || Object.keys(args).length === 0) {
         return <div className="text-sm text-gray-500 p-2">No arguments to display.</div>;
     }
 
     // A "complex view" is needed if we are showing diffs and at least one of them is a complex argument_diff
-    const isComplexView = isDiffViewer && Object.values(args).some(arg => arg.diff_type === 'argument_diff');
+    const isComplexView = isDiffViewer && Object.values(args).some(arg => 'diff_type' in arg && arg.diff_type === 'argument_diff');
 
     return (
         <div className="border border-gray-200 rounded-md bg-white">

@@ -18,7 +18,7 @@ interface KernelOverviewProps {
 /**
  * Determines if a metadata value is considered "long" and should be displayed at the end
  */
-const isLongValue = (value: any): boolean => {
+const isLongValue = (value: unknown): boolean => {
   const formattedString = formatMetadataValue(value);
   return formattedString.length > 50;
 };
@@ -28,7 +28,7 @@ const isLongValue = (value: any): boolean => {
  * @param value - The value to format
  * @returns Formatted string representation
  */
-const formatMetadataValue = (value: any): string => {
+const formatMetadataValue = (value: unknown): string => {
   if (value === null) {
     return "null";
   }
@@ -72,7 +72,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({
  * Gets the actual file path from a stack entry's filename
  * @param entry - The stack entry
  */
-const getSourceFilePath = (entry: any): string => {
+const getSourceFilePath = (entry: { filename: string | unknown }): string => {
   if (typeof entry.filename === "string") {
     return entry.filename;
   }
@@ -212,7 +212,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
               <div className="grid grid-cols-[repeat(auto-fit,_minmax(180px,_1fr))] gap-3 mb-4">
                 {/* All short metadata fields */}
                 {Object.entries(kernel.metadata)
-                  .filter(([_key, value]) => !isLongValue(value))
+                  .filter(([, value]) => !isLongValue(value))
                   .map(([key, value]) => {
                     return (
                       <MetadataItem
@@ -231,12 +231,12 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
               </div>
 
               {/* Long fields in separate section within same container */}
-              {Object.entries(kernel.metadata).filter(([_key, value]) =>
+              {Object.entries(kernel.metadata).filter(([, value]) =>
                 isLongValue(value)
               ).length > 0 && (
                 <div className="space-y-3 border-t border-gray-200 pt-4">
                   {Object.entries(kernel.metadata)
-                    .filter(([_key, value]) => isLongValue(value))
+                    .filter(([, value]) => isLongValue(value))
                     .map(([key, value]) => (
                       <div key={key} className="w-full">
                         <span className="text-sm font-medium text-gray-500 block mb-1">
@@ -282,7 +282,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
                   </h4>
                   <div className="font-mono text-sm bg-gray-100 p-2 rounded">
                     {kernel.launchDiff.launch_index_map
-                      .map((r: any) =>
+                      .map((r: { start: number; end: number }) =>
                         r.start === r.end
                           ? `${r.start}`
                           : `${r.start}-${r.end}`

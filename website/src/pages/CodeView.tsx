@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { ProcessedKernel, getIRType } from "../utils/dataLoader";
 import CodeComparisonView from "../components/CodeComparisonView";
-import { getDisplayLanguage } from "../components/TritonIRs";
-import { mapLanguageToHighlighter } from "../components/CodeViewer";
+import { getDisplayLanguage } from "../utils/languageUtils";
+import { mapLanguageToHighlighter } from "../utils/codeViewerUtils";
 
 /**
  * Props for the CodeView component
@@ -28,23 +28,6 @@ const CodeView: React.FC<CodeViewProps> = ({ kernels, selectedKernel = 0 }) => {
   // State to track the last selected kernel to detect changes
   const [lastSelectedKernel, setLastSelectedKernel] = useState<number>(selectedKernel);
 
-  // Return a message if no kernel data is available
-  if (!kernels || kernels.length === 0 || selectedKernel < 0) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-gray-800">
-          No data available for code comparison
-        </div>
-      </div>
-    );
-  }
-
-  const kernel = kernels[selectedKernel];
-  const irFiles = Object.keys(kernel.irFiles);
-
-  // Check if Python source is available
-  const hasPythonSource = !!kernel.pythonSourceInfo?.code;
-
   // Reset selections when kernel changes
   useEffect(() => {
     if (selectedKernel !== lastSelectedKernel) {
@@ -57,6 +40,10 @@ const CodeView: React.FC<CodeViewProps> = ({ kernels, selectedKernel = 0 }) => {
 
   // Set default IR files on initial render or when kernel changes
   useEffect(() => {
+    const kernel = kernels?.[selectedKernel];
+    if (!kernel) return;
+
+    const irFiles = Object.keys(kernel.irFiles);
     // Skip setting defaults if both IR files are already selected
     if (leftIR && rightIR) {
       return;
@@ -96,7 +83,24 @@ const CodeView: React.FC<CodeViewProps> = ({ kernels, selectedKernel = 0 }) => {
     if (!rightIR && defaultRightIR) {
       setRightIR(defaultRightIR);
     }
-  }, [irFiles, leftIR, rightIR]);
+  }, [kernels, selectedKernel, leftIR, rightIR]);
+
+  // Return a message if no kernel data is available
+  if (!kernels || kernels.length === 0 || selectedKernel < 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-gray-800">
+          No data available for code comparison
+        </div>
+      </div>
+    );
+  }
+
+  const kernel = kernels[selectedKernel];
+  const irFiles = Object.keys(kernel.irFiles);
+
+  // Check if Python source is available
+  const hasPythonSource = !!kernel.pythonSourceInfo?.code;
 
   // Show message if no IR files are available
   if (irFiles.length === 0) {

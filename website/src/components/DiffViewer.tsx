@@ -2,8 +2,35 @@ import ArgumentViewer from "./ArgumentViewer";
 import React from "react";
 import StackDiffViewer from "./StackDiffViewer";
 
+interface LaunchRange {
+  start: number;
+  end: number;
+}
+
+interface DistributionValue {
+  value: unknown;
+  count: number;
+  launches: LaunchRange[];
+}
+
+interface DistributionData {
+  diff_type: "distribution";
+  values: DistributionValue[];
+}
+
+interface SummaryData {
+  diff_type: "summary";
+  summary_text: string;
+}
+
+type SimpleDiff = DistributionData | SummaryData;
+
 interface DiffViewerProps {
-  diffs: any;
+  diffs: {
+    extracted_args?: Record<string, unknown>;
+    stack?: unknown;
+    [key: string]: unknown;
+  };
 }
 
 const DiffViewer: React.FC<DiffViewerProps> = ({ diffs }) => {
@@ -22,16 +49,16 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ diffs }) => {
     )
   );
 
-  const renderSimpleDiff = (_key: string, data: any) => {
+  const renderSimpleDiff = (_key: string, data: SimpleDiff) => {
     if (data.diff_type === "summary") {
       return <p className="font-mono text-sm text-gray-800">{data.summary_text}</p>;
     }
     if (data.diff_type === "distribution") {
       return (
         <ul className="list-disc list-inside pl-2 text-sm">
-          {data.values.map((item: any, index: number) => {
+          {data.values.map((item, index: number) => {
             const launchRanges = item.launches
-              .map((r: any) =>
+              .map((r) =>
                 r.start === r.end
                   ? `${r.start + 1}`
                   : `${r.start + 1}-${r.end + 1}`
