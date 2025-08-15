@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import CodeViewer from "./CodeViewer";
 import { IRFile } from "../utils/dataLoader";
-import { getDisplayLanguage } from "./TritonIRs";
+import { getDisplayLanguage } from "../utils/languageUtils";
 
 /**
  * Props for the SingleCodeViewer component
@@ -57,7 +57,7 @@ const SingleCodeViewer: React.FC<SingleCodeViewerProps> = ({
               mapping.ttgir_line === clickedMapping.ttgir_line &&
               parseInt(lineKey, 10) !== parseInt(_, 10) // Skip the clicked line itself
           )
-          .map(([line, _]) => parseInt(line, 10));
+          .map(([line]) => parseInt(line, 10));
 
         if (relatedLines.length > 0) {
           // Include the clicked line and any related lines

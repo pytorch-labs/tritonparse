@@ -5,6 +5,7 @@ import {
   oneDark,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { SourceMapping } from "../utils/dataLoader";
+import { mapLanguageToHighlighter } from "../utils/codeViewerUtils";
 
 // Import language support
 import llvm from 'react-syntax-highlighter/dist/esm/languages/prism/llvm';
@@ -121,7 +122,7 @@ const useScrollManagement = (
 
     // Update previous highlights
     previousHighlightedLinesRef.current = [...currentLines];
-  }, [highlightedLines, scrollKey, fontSize, customScrollToLine, resetScrollFlag, performDirectScroll]);
+  }, [highlightedLines, scrollKey, fontSize, customScrollToLine, resetScrollFlag, performDirectScroll, containerRef]);
 
   return {
     saveScrollPosition
@@ -146,30 +147,6 @@ interface CodeViewerProps {
 }
 
 /**
- * Maps our internal language names to syntax highlighter languages
- * @param language Internal language identifier
- * @returns Syntax highlighter language identifier
- */
-export const mapLanguageToHighlighter = (language: string): string => {
-  const lowerCaseLanguage = language.toLowerCase();
-
-  // Handle language types with endsWith for better accuracy
-  if (lowerCaseLanguage.endsWith("ttgir") || lowerCaseLanguage.endsWith("ttir")) {
-    return 'mlir';
-  } else if (lowerCaseLanguage.endsWith("llir")) {
-    return 'llvm';
-  } else if (lowerCaseLanguage.endsWith("ptx")) {
-    return 'ptx';
-  } else if (lowerCaseLanguage.endsWith("amdgcn")) {
-    return 'amdgcn';
-  } else if (lowerCaseLanguage === "python") {
-    return 'python';
-  }
-
-  return 'plaintext';
-};
-
-/**
  * Split code into lines
  * @param code The code content as string
  * @returns Array of code lines
@@ -184,7 +161,7 @@ const splitIntoLines = (code: string): string[] => {
  * @param wait The number of milliseconds to delay
  * @returns Debounced function
  */
-function debounce<T extends (...args: any[]) => any>(
+function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -215,7 +192,7 @@ const BasicCodeViewer: React.FC<CodeViewerProps> = ({
     if (onLineClick) {
       onLineClick(lineNumber);
     }
-  }, [onLineClick, viewerId]);
+  }, [onLineClick]);
 
   return (
     <div
@@ -378,7 +355,7 @@ const LargeFileViewer: React.FC<CodeViewerProps> = ({
     if (onLineClick) {
       onLineClick(lineNumber);
     }
-  }, [onLineClick, viewerId]);
+  }, [onLineClick]);
 
   // Map the language to the appropriate highlighter language
   const highlighterLanguage = mapLanguageToHighlighter(language);
@@ -502,7 +479,7 @@ const StandardCodeViewer: React.FC<CodeViewerProps> = ({
     if (onLineClick) {
       onLineClick(lineNumber);
     }
-  }, [onLineClick, viewerId]);
+  }, [onLineClick]);
 
   return (
     <div

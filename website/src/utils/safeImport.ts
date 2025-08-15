@@ -7,7 +7,7 @@
  * Safely imports a module by path, returning null if it doesn't exist
  * Uses string concatenation to bypass static analysis while maintaining proper path resolution
  */
-export async function safeImport(modulePath: string): Promise<any | null> {
+export async function safeImport(modulePath: string): Promise<unknown | null> {
   try {
     // Adjust path to account for safeImport.ts being in the utils directory
     // When called from App.tsx with './utils/fb/internal_utils',
