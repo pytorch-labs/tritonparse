@@ -1,12 +1,14 @@
 # Makefile for tritonparse project
 
-.PHONY: help format format-check lint lint-check test test-cuda clean install-dev
+.PHONY: help format format-check format-website format-website-check lint lint-check test test-cuda clean install-dev
 
 # Default target
 help:
 	@echo "Available targets:"
 	@echo "  format        - Format all Python files"
 	@echo "  format-check  - Check formatting without making changes"
+	@echo "  format-website       - Format website (ESLint --fix)"
+	@echo "  format-website-check - Check website formatting without making changes"
 	@echo "  lint          - Run all linters"
 	@echo "  lint-check    - Check linting without making changes"
 	@echo "  test          - Run tests (CPU only)"
@@ -22,6 +24,15 @@ format:
 format-check:
 	@echo "Checking formatting..."
 	python -m tritonparse.tools.format_fix --check-only --verbose
+
+# Website formatting targets
+format-website:
+	@echo "Running website format (ESLint)..."
+	python -m tritonparse.tools.format_fix --website --verbose
+
+format-website-check:
+	@echo "Checking website formatting..."
+	python -m tritonparse.tools.format_fix --website --check-only --verbose
 
 # Linting targets
 lint:
