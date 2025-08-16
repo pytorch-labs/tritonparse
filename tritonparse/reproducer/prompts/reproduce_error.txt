@@ -1,0 +1,36 @@
+Your task is to generate a Python script that precisely reproduces a specific error.
+You are given the original kernel information and a detailed analysis of the error that occurred.
+Your goal is to generate a script that FAILS with the described error.
+
+DO NOT try to fix the bug.
+DO NOT write a script that runs successfully.
+The script must trigger the error outlined in the analysis report.
+
+---
+**Error Analysis Report**
+{{ error_analysis_report }}
+---
+**Original Kernel and Parameters**
+(This is the context in which the error originally occurred)
+
+**Kernel Source:**
+```python
+{{ kernel_source }}
+```
+
+**Parameter Allocation Code:**
+```python
+{{ allocation_snippet }}
+```
+
+**Launch Kwargs:**
+```json
+{{ kwargs_dict }}
+```
+
+**Compile Options:**
+```json
+{{ compile }}
+```
+---
+Now, generate the complete, self-contained Python script that will reproduce the error described in the report.

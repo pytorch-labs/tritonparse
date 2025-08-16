@@ -1,0 +1,23 @@
+Your previous attempt to generate an error-reproducing script failed because the script ran successfully.
+Your goal is to create a script that FAILS in a specific way.
+
+Review the original error analysis, and critically analyze the Python script you generated previously (which succeeded).
+Generate a NEW version of the script that is more likely to trigger the target error.
+
+You might need to:
+- Adjust tensor initializations (e.g., introduce NaNs, Infs, or specific patterns).
+- Modify scalar values to hit edge cases.
+- Re-evaluate the kernel launch grid or other parameters if they might prevent the failure condition.
+
+---
+**Target Error Analysis Report**
+(This is the error you MUST reproduce)
+{{ error_analysis_report }}
+---
+**Your Previous (Unsuccessful) Code**
+(This code ran successfully and needs to be fixed to fail)
+```python
+{{ prev_code_excerpt }}
+```
+---
+Now, generate the complete, NEW, self-contained Python script that will correctly reproduce the error.
