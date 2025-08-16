@@ -68,24 +68,46 @@ def generate_from_ndjson(
         summary_prompt = render_prompt("summarize_error.txt", summary_context)
         # Use a simpler system prompt for the summary task
         summary_system_prompt = "You are an expert Triton debugging engineer."
-        logger.debug("Sending summarization prompt to LLM:\n%s", summary_prompt)
+        logger.debug(
+            "Sending summarization prompt to LLM:\n---\n%s\n---\n%s\n---",
+            summary_system_prompt,
+            summary_prompt,
+        )
         error_analysis_report = provider.generate_code(
             summary_system_prompt, summary_prompt, **gen_kwargs
         )
         context["error_analysis_report"] = error_analysis_report
         logger.debug("Received error analysis report:\n%s", error_analysis_report)
 
-    system_prompt = render_prompt("system.txt", context)
+    system_prompt = render_prompt("system_import.txt", context)
 
     if is_error_repro_mode:
         user_prompt = render_prompt("reproduce_error.txt", context)
     else:
         user_prompt = render_prompt("generate_one_shot.txt", context)
 
-    logger.info("Generating reproducer script via LLM...")
-    logger.debug("System prompt:\n%s", system_prompt)
-    logger.debug("User prompt:\n%s", user_prompt)
-    code = provider.generate_code(system_prompt, user_prompt, **gen_kwargs)
+    logger.info("Generating reproducer script via LLM (import strategy)...")
+    logger.debug(
+        "System prompt for code generation:\n---\n%s\n---", system_prompt
+    )
+    logger.debug("User prompt for code generation:\n---\n%s\n---", user_prompt)
+
+    # --- Code Generation with Validation Loop ---
+    code = ""
+    for gen_attempt in range(3):  # Allow up to 3 tries to get valid code
+        code = provider.generate_code(system_prompt, user_prompt, **gen_kwargs)
+        if "{{" not in code:
+            logger.debug("Generated code passed template validation on attempt %d.", gen_attempt + 1)
+            break
+        logger.warning(
+            "Generated code contains un-rendered Jinja2 templates on attempt %d. Retrying.",
+            gen_attempt + 1
+        )
+        # On the last attempt, fail hard
+        if gen_attempt == 2:
+            logger.error("Failed to generate valid code after 3 attempts. Aborting.")
+            raise RuntimeError("LLM failed to render templates in generated code.")
+    
     Path(out_py).write_text(code, encoding="utf-8")
     logger.info("Reproducer script saved to: %s", out_py)
     logger.debug("Generated code:\n%s", code)
@@ -142,16 +164,35 @@ def generate_from_ndjson(
             # The first attempt's code is already generated outside the loop
             if attempt > 0:
                 # On subsequent attempts, generate new code
-                logger.info("Previous attempt did not fail. Generating new version...")
+                logger.info("Previous attempt did not fail correctly. Generating new version...")
                 retry_ctx = {
                     "error_analysis_report": context.get("error_analysis_report", ""),
                     "prev_code_excerpt": _excerpt(code, 200),
+                    "last_actual_error": context.get("last_actual_error"),
                 }
                 retry_prompt = render_prompt("retry_reproduce_error.txt", retry_ctx)
-                logger.debug("Sending retry prompt to LLM:\n%s", retry_prompt)
-                code = provider.generate_code(system_prompt, retry_prompt, **gen_kwargs)
+                logger.debug(
+                    "Sending retry prompt to LLM:\n---\n%s\n---", retry_prompt
+                )
+                
+                # --- Code Generation with Validation Loop (inside retry) ---
+                for gen_attempt in range(3):
+                    code = provider.generate_code(system_prompt, retry_prompt, **gen_kwargs)
+                    if "{{" not in code:
+                        logger.debug("Generated code passed template validation on attempt %d.", gen_attempt + 1)
+                        break
+                    logger.warning(
+                        "Generated code contains un-rendered Jinja2 templates on attempt %d. Retrying.",
+                        gen_attempt + 1
+                    )
+                    if gen_attempt == 2:
+                        logger.error("Failed to generate valid code after 3 attempts. Aborting.")
+                        raise RuntimeError("LLM failed to render templates in generated code.")
+
                 Path(out_py).write_text(code, encoding="utf-8")
-                logger.debug("Generated new code for attempt %d:\n%s", attempt + 1, code)
+                logger.debug(
+                    "Generated new code for attempt %d:\n%s", attempt + 1, code
+                )
 
             rc, out, err = run_python(out_py)
             logger.debug(
@@ -163,16 +204,40 @@ def generate_from_ndjson(
             )
 
             if rc != 0:
-                # Success! The script failed as intended.
-                logger.info("Success! Script failed as intended on attempt %d.", attempt + 1)
-                return {
-                    "path": out_py,
-                    "returncode": rc,
-                    "stdout": out,
-                    "stderr": err,
-                    "message": f"Successfully reproduced the error in {attempt + 1} attempt(s).",
-                    "repro_attempts_used": attempt + 1,
+                # Script failed. Now, verify if it's the CORRECT failure.
+                logger.info("Script failed. Verifying error type via LLM...")
+                verify_ctx = {
+                    "target_error": context.get("error_analysis_report", ""),
+                    "actual_error": err,
                 }
+                verify_prompt = render_prompt("verify_error.txt", verify_ctx)
+                verify_system_prompt = "You are a debugging assistant."
+                verification_result = provider.generate_code(
+                    verify_system_prompt, verify_prompt, temperature=0.0
+                ).strip()
+                logger.debug("Verification result from LLM: %s", verification_result)
+
+                if "YES" in verification_result:
+                    # Success! The script failed as intended.
+                    logger.info(
+                        "Success! Script failed with the correct error type on attempt %d.",
+                        attempt + 1,
+                    )
+                    return {
+                        "path": out_py,
+                        "returncode": rc,
+                        "stdout": out,
+                        "stderr": err,
+                        "message": f"Successfully reproduced the error in {attempt + 1} attempt(s).",
+                        "repro_attempts_used": attempt + 1,
+                    }
+                else:
+                    logger.warning(
+                        "Script failed with an INCORRECT error type on attempt %d.",
+                        attempt + 1,
+                    )
+                    # This attempt failed, continue to the next retry.
+                    context["last_actual_error"] = err  # Store for the next prompt
 
         # If the loop finishes, we failed to reproduce the error
         logger.warning(

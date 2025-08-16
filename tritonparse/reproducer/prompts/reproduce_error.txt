@@ -1,21 +1,23 @@
-Your task is to generate a Python script that precisely reproduces a specific error.
-You are given the original kernel information and a detailed analysis of the error that occurred.
-Your goal is to generate a script that FAILS with the described error.
+Your task is to generate a Python script that precisely reproduces a specific error by IMPORTING the kernel.
 
-DO NOT try to fix the bug.
-DO NOT write a script that runs successfully.
-The script must trigger the error outlined in the analysis report.
+DO NOT copy the kernel's source code. The script must import it from its original file.
 
 ---
 **Error Analysis Report**
+```
 {{ error_analysis_report }}
+```
 ---
 **Original Kernel and Parameters**
 (This is the context in which the error originally occurred)
 
-**Kernel Source:**
+**Kernel Import Details:**
+- File Path: `{{ kernel_info.file_path }}`
+- Function to Import: `{{ kernel_info.function_name }}`
+
+*(For your reference, the original source code was:)*
 ```python
-{{ kernel_source }}
+{{ kernel_info.source_code }}
 ```
 
 **Parameter Allocation Code:**
@@ -33,4 +35,5 @@ The script must trigger the error outlined in the analysis report.
 {{ compile }}
 ```
 ---
-Now, generate the complete, self-contained Python script that will reproduce the error described in the report.
+Now, generate the complete, self-contained Python script that will IMPORT and launch the kernel to reproduce the error.
+Remember to add the file's parent directory to `sys.path`.

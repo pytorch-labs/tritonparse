@@ -1,23 +1,33 @@
-Your previous attempt to generate an error-reproducing script failed because the script ran successfully.
-Your goal is to create a script that FAILS in a specific way.
+Your previous attempt to generate an error-reproducing script was unsuccessful.
+The script either ran successfully, or it failed with the WRONG error type.
 
-Review the original error analysis, and critically analyze the Python script you generated previously (which succeeded).
-Generate a NEW version of the script that is more likely to trigger the target error.
+Your goal is to create a script that IMPORTS a kernel and FAILS with a specific root cause.
 
-You might need to:
-- Adjust tensor initializations (e.g., introduce NaNs, Infs, or specific patterns).
-- Modify scalar values to hit edge cases.
-- Re-evaluate the kernel launch grid or other parameters if they might prevent the failure condition.
+Review the original target error, your previous code, and the actual outcome.
+Generate a NEW version of the script that is more likely to trigger the correct error.
 
 ---
 **Target Error Analysis Report**
 (This is the error you MUST reproduce)
+```
 {{ error_analysis_report }}
+```
 ---
-**Your Previous (Unsuccessful) Code**
-(This code ran successfully and needs to be fixed to fail)
+**Kernel Import Details:**
+- File Path: `{{ kernel_info.file_path }}`
+- Function to Import: `{{ kernel_info.function_name }}`
+---
+**Your Previous Code**
+(This is the code you previously generated)
 ```python
 {{ prev_code_excerpt }}
 ```
 ---
-Now, generate the complete, NEW, self-contained Python script that will correctly reproduce the error.
+**Actual Outcome from Previous Code**
+(This is what happened when the code ran. If it says "No error", it means the script ran successfully.)
+```
+{{ last_actual_error | default("No error.") }}
+```
+---
+Critically analyze why your previous attempt failed.
+Generate the complete, NEW, self-contained Python script that will correctly IMPORT and launch the kernel to reproduce the target error.
