@@ -293,48 +293,83 @@ function isGzipFile(buffer: ArrayBuffer): boolean {
 }
 
 /**
- * Decompresses a gzip file using CompressionStream API
- * @param buffer - ArrayBuffer containing the gzip data
- * @returns Promise resolving to decompressed text
+ * Parses log data from a stream, handling line-by-line NDJSON parsing.
+ * This is memory-efficient and suitable for very large files.
+ * @param stream - A ReadableStream of Uint8Array (e.g., from a decompressed file)
+ * @returns A promise that resolves to an array of LogEntry objects
  */
-async function decompressGzip(buffer: ArrayBuffer): Promise<string> {
-    try {
-        // Check if CompressionStream is supported
-        if (!('DecompressionStream' in window)) {
-            throw new Error('DecompressionStream API is not supported in this browser');
+async function parseLogDataFromStream(stream: ReadableStream<Uint8Array>): Promise<LogEntry[]> {
+    const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = '';
+    const entries: LogEntry[] = [];
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+            if (buffer.trim()) {
+                try {
+                    const parsedLine: LogEntry = JSON.parse(buffer);
+                    if (parsedLine && typeof parsedLine === 'object') {
+                        entries.push(parsedLine);
+                    }
+                } catch (e) {
+                    console.warn(`Failed to parse final line as JSON: ${buffer.substring(0, 100)}...`);
+                }
+            }
+            break;
         }
 
-        // Create a decompression stream
-        const ds = new DecompressionStream('gzip');
-        const decompressedStream = new Blob([buffer]).stream().pipeThrough(ds);
-        const decompressedBlob = await new Response(decompressedStream).blob();
-        return await decompressedBlob.text();
-    } catch (error) {
-        console.error('Error decompressing gzip file:', error);
-        throw new Error(`Failed to decompress gzip file: ${error instanceof Error ? error.message : String(error)}`);
+        buffer += value;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (line.trim() === '') continue;
+            try {
+                const parsedLine: LogEntry = JSON.parse(line);
+                if (parsedLine && typeof parsedLine === 'object') {
+                    entries.push(parsedLine);
+                }
+            } catch (e) {
+                console.warn(`Failed to parse line as JSON: ${line.substring(0, 100)}...`);
+            }
+        }
     }
+
+    if (entries.length === 0) {
+        console.error("No valid JSON entries found in stream data");
+        throw new Error("No valid JSON entries found in stream data");
+    }
+
+    return entries;
 }
 
+
 /**
- * Processes ArrayBuffer data, handling gzip decompression if needed
+ * Processes ArrayBuffer data, handling gzip decompression and parsing if needed
  * @param buffer - ArrayBuffer containing the data
- * @returns Promise resolving to text string
+ * @returns Promise resolving to an array of LogEntry objects
  */
-async function processArrayBuffer(buffer: ArrayBuffer): Promise<string> {
+async function processArrayBuffer(buffer: ArrayBuffer): Promise<LogEntry[]> {
     // Check if file is gzip compressed
     if (isGzipFile(buffer)) {
         try {
-            const textData = await decompressGzip(buffer);
-            return textData;
+            if (!('DecompressionStream' in window)) {
+                throw new Error('DecompressionStream API is not supported in this browser');
+            }
+            const ds = new DecompressionStream('gzip');
+            const decompressedStream = new Blob([buffer]).stream().pipeThrough(ds);
+            return await parseLogDataFromStream(decompressedStream);
         } catch (error) {
-            console.error("Error decompressing gzip data:", error);
-            throw new Error(`Failed to decompress gzip data: ${error instanceof Error ? error.message : String(error)}`);
+            console.error('Error decompressing or parsing gzip stream:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to process gzip stream: ${message}`);
         }
     } else {
-        // Convert ArrayBuffer to string if it's not compressed
+        // For non-gzipped files that are small enough to fit in memory
         const decoder = new TextDecoder();
         const textData = decoder.decode(buffer);
-        return textData;
+        return parseLogData(textData);
     }
 }
 
@@ -351,9 +386,7 @@ export async function loadLogData(url: string): Promise<LogEntry[]> {
         }
 
         const buffer = await response.arrayBuffer();
-        const textData = await processArrayBuffer(buffer);
-
-        return parseLogData(textData);
+        return await processArrayBuffer(buffer);
     } catch (error) {
         console.error("Error loading log data:", error);
         throw error;
@@ -367,6 +400,18 @@ export async function loadLogData(url: string): Promise<LogEntry[]> {
  * @returns Promise resolving to an array of LogEntry objects
  */
 export function loadLogDataFromFile(file: File): Promise<LogEntry[]> {
+    // For large files, we should use streaming to avoid memory issues
+    const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100 MB
+    if (file.size > LARGE_FILE_THRESHOLD) {
+        console.log(`File size (${file.size} bytes) exceeds threshold, using streaming.`);
+        // Note: This does not handle gzipped files selected locally, as we can't
+        // easily detect gzip from a stream without reading parts of it first.
+        // The assumption is that very large local files are not gzipped or
+        // have already been decompressed.
+        return parseLogDataFromStream(file.stream() as ReadableStream<Uint8Array>);
+    }
+
+    // For smaller files, reading into memory is faster and simpler.
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
@@ -381,8 +426,7 @@ export function loadLogDataFromFile(file: File): Promise<LogEntry[]> {
                     throw new Error("Expected ArrayBuffer from FileReader");
                 }
 
-                const textData = await processArrayBuffer(result);
-                resolve(parseLogData(textData));
+                resolve(await processArrayBuffer(result));
             } catch (error) {
                 console.error("Error parsing data from file:", error);
                 reject(error);
