@@ -1,5 +1,8 @@
 import json
+import logging
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 
 def _iter_events(path: str):
@@ -11,7 +14,7 @@ def _iter_events(path: str):
             try:
                 yield json.loads(line)
             except json.JSONDecodeError:
-                # skip malformed lines
+                logger.warning("Skipping malformed JSON line: %s", line)
                 continue
 
 
@@ -25,11 +28,14 @@ def _index_compilations(events: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any
         h = meta.get("hash")
         if h:
             idx[h] = e
+    logger.debug("Indexed %d compilation events.", len(idx))
     return idx
 
 
 def _get_launches(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [e for e in events if e.get("event_type") == "launch"]
+    launches = [e for e in events if e.get("event_type") == "launch"]
+    logger.debug("Found %d launch events in total.", len(launches))
+    return launches
 
 
 def _resolve_kernel_source(
@@ -43,8 +49,12 @@ def _resolve_kernel_source(
     )
     h = comp_meta.get("hash")
     if not h:
+        logger.warning("Could not find compilation hash in launch event.")
         return ""
     comp = comp_idx.get(h, {})
+    if not comp:
+        logger.warning("Could not resolve compilation hash '%s' to a compilation event.", h)
+        return ""
     payload = comp.get("payload") or {}
     py = payload.get("python_source") or {}
     return py.get("code", "")
@@ -97,14 +107,19 @@ def _decode_arg(raw: Any):
 
 
 def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, Any]:
+    logger.debug("Reading events from '%s'...", ndjson_path)
     events = list(_iter_events(ndjson_path))
     launches = _get_launches(events)
     if not launches:
         raise RuntimeError("No launch events found in NDJSON.")
     if launch_index < 0 or launch_index >= len(launches):
+        logger.error(
+            "launch_index out of range: %d (total %d)", launch_index, len(launches)
+        )
         raise IndexError(
             f"launch_index out of range: {launch_index} (total {len(launches)})"
         )
+    logger.info("Targeting launch event at index: %d", launch_index)
     launch = launches[launch_index]
     comp_idx = _index_compilations(events)
     kernel_source = _resolve_kernel_source(launch, comp_idx)
@@ -113,6 +128,7 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
     jit_pos = kernel_source.find(jit_marker)
     if jit_pos != -1:
         kernel_source = kernel_source[jit_pos:]
+        logger.debug("Extracted kernel source starting from '@triton.jit'.")
 
     # flatten launch fields (support both formats)
     grid = launch.get("grid") or (launch.get("payload", {})).get("grid")
@@ -163,3 +179,43 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
         "tensor_args": _pack_args(tensor_args),
     }
     return bundle
+
+
+def find_launch_index_from_line(ndjson_path: str, target_line: int) -> int:
+    """Find the launch_index for a given line number in an NDJSON file."""
+    if target_line <= 0:
+        raise ValueError("Line numbers must be 1-based and positive.")
+
+    launch_count = 0
+    with open(ndjson_path, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f, 1):
+            if i > target_line:
+                # We've passed the target line without finding a launch event on it
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                if event.get("event_type") == "launch":
+                    if i == target_line:
+                        logger.debug(
+                            "Found target launch event on line %d, launch_index is %d.",
+                            target_line,
+                            launch_count,
+                        )
+                        return launch_count
+                    launch_count += 1
+            except json.JSONDecodeError:
+                # Warning already logged in _iter_events if it were used, but not here.
+                logger.warning("Skipping malformed JSON line: %s", line)
+                continue
+
+    logger.error(
+        "Could not find a 'launch' event on line %d in '%s'",
+        target_line,
+        ndjson_path,
+    )
+    raise ValueError(
+        f"Could not find a 'launch' event on line {target_line} in {ndjson_path}"
+    )

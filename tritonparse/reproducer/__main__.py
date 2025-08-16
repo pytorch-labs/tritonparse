@@ -1,5 +1,12 @@
 import argparse
+import logging
 import sys
+
+# Lazy imports are moved to the bottom
+from .cli import _add_reproducer_args, _validate_args
+from .config import load_config
+from .log_config import setup_logging
+from .orchestrator import generate_from_ndjson
 
 
 def main() -> None:
@@ -8,25 +15,10 @@ def main() -> None:
             "Generate a runnable Triton repro script from a tritonparse NDJSON" " trace"
         )
     )
-    p.add_argument("--ndjson", required=True, help="Path to NDJSON trace file")
-    p.add_argument(
-        "--launch-index",
-        type=int,
-        default=0,
-        help="Launch index to reproduce",
-    )
-    p.add_argument("--out", default="repro.py", help="Output Python file path")
-    p.add_argument(
-        "--execute",
-        action="store_true",
-        help="Execute the generated script",
-    )
-    p.add_argument(
-        "--retries",
-        type=int,
-        default=0,
-        help="Auto-repair attempts if execution fails",
-    )
+    # Add all arguments from the centralized helper function
+    _add_reproducer_args(p)
+
+    # Add arguments specific to direct execution via __main__
     p.add_argument(
         "--temperature",
         type=float,
@@ -39,9 +31,11 @@ def main() -> None:
     )
     args = p.parse_args()
 
-    # Lazy imports to allow `--help` without optional deps installed
-    from .config import load_config
-    from .orchestrator import generate_from_ndjson
+    # Setup logging as early as possible
+    setup_logging(level=logging.DEBUG if args.debug else logging.INFO)
+
+    # Validate arguments using the centralized helper function
+    _validate_args(p, args)
 
     try:
         from .factory import make_gemini_provider
@@ -65,15 +59,20 @@ def main() -> None:
     max_tokens = args.max_tokens if args.max_tokens is not None else cfg.max_tokens
 
     res = generate_from_ndjson(
-        args.ndjson,
-        provider,
-        launch_index=args.launch_index,
+        ndjson_path=args.ndjson,
+        provider=provider,
         out_py=args.out,
         execute=args.execute,
-        retries=args.retries,
+        # Mode-specific params
+        launch_index=args.launch_index,
+        reproduce_error_from=args.reproduce_error_from,
+        on_line=args.on_line,
+        attempts=args.attempts,
+        # LLM params
         temperature=temperature,
         max_tokens=max_tokens,
     )
+    # The final result is still printed to stdout as it's the program's output
     print(res)
 
 
