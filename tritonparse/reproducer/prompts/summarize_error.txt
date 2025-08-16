@@ -1,13 +1,17 @@
-You are an expert Triton debugging engineer. Your task is to extract and structure key debugging information from the following full error stack and log. Return a detailed, organized summary in a clear format. Ensure you include all of the following points:
+Analyze the following error log and provide a structured debugging report.
+Your output must ONLY be the report, with no introductory text, conversational pleasantries, or apologies.
 
-- **Root Error Type**: Clearly state the lowest-level error, e.g., `CUDA_ERROR_ILLEGAL_ADDRESS`, `Misaligned Address`, `Invalid Memory Access`.
-- **Error Location**: If possible, identify the likely location in the Triton kernel code where the error occurred (e.g., a `tl.load` or `tl.store` operation).
-- **Key Tensor Analysis**: List all tensors relevant to the error. For each tensor, provide these details:
-    - Name (e.g., `in_ptr0`, `out_ptr`)
-    - Shape
-    - Dtype
-    - Stride
-    - Is Contiguous
-- **Root Cause Hypothesis**: Based on all the above information, provide your most likely technical hypothesis for why the error occurred. For example: 'Hypothesis: The error is caused by an out-of-bounds read on the input tensor `in_ptr1`. Its second dimension is 512, but the kernel's logic may be attempting to access an index beyond this range.'
+The report must contain these exact sections:
+- **Root Error Type**: State the lowest-level error (e.g., `CUDA_ERROR_ILLEGAL_ADDRESS`).
+- **Error Location**: Identify the likely location in the Triton kernel code (e.g., a `tl.load` or `tl.store`).
+- **Key Tensor Analysis**: List all relevant tensors with their Name, Shape, Dtype, Stride, and Contiguous status.
+- **Root Cause Hypothesis**: Provide your most likely technical hypothesis for the error's cause.
 
-Your output must be exhaustive. Preserve all details that could be useful for reproducing the issue. Do not simplify or omit numerical values like shapes or strides.
+Begin your output directly with the "Root Error Type" section.
+
+---
+**Error Log to Analyze:**
+```
+{{ full_error_text }}
+```
+---

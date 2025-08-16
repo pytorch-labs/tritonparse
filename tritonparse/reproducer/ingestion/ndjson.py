@@ -38,9 +38,10 @@ def _get_launches(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return launches
 
 
-def _resolve_kernel_source(
+def _resolve_kernel_info(
     launch: Dict[str, Any], comp_idx: Dict[str, Dict[str, Any]]
-) -> str:
+) -> Dict[str, Any]:
+    """Resolve kernel info (path, name, code) from a launch event."""
     # In new format, launch has top-level compilation_metadata, not payload.*
     comp_meta = (
         launch.get("compilation_metadata")
@@ -50,14 +51,35 @@ def _resolve_kernel_source(
     h = comp_meta.get("hash")
     if not h:
         logger.warning("Could not find compilation hash in launch event.")
-        return ""
+        return {}
     comp = comp_idx.get(h, {})
     if not comp:
         logger.warning("Could not resolve compilation hash '%s' to a compilation event.", h)
-        return ""
+        return {}
+
     payload = comp.get("payload") or {}
-    py = payload.get("python_source") or {}
-    return py.get("code", "")
+    py_source = payload.get("python_source") or {}
+    code = py_source.get("code", "")
+
+    # Extract file path and function name
+    file_path = py_source.get("file_path")
+    # The function name is in the compilation metadata payload
+    func_name = (comp.get("payload", {}).get("metadata") or {}).get("name")
+
+    # find '@triton.jit' and slice the string
+    jit_marker = "@triton.jit"
+    jit_pos = code.find(jit_marker)
+    if jit_pos != -1:
+        code = code[jit_pos:]
+        logger.debug("Extracted kernel source starting from '@triton.jit'.")
+
+    info = {
+        "file_path": file_path,
+        "function_name": func_name,
+        "source_code": code,
+    }
+    logger.debug("Resolved kernel info: %s", info)
+    return info
 
 
 def _pack_args(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -122,13 +144,12 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
     logger.info("Targeting launch event at index: %d", launch_index)
     launch = launches[launch_index]
     comp_idx = _index_compilations(events)
-    kernel_source = _resolve_kernel_source(launch, comp_idx)
-    # find '@triton.jit' and slice the string
-    jit_marker = "@triton.jit"
-    jit_pos = kernel_source.find(jit_marker)
-    if jit_pos != -1:
-        kernel_source = kernel_source[jit_pos:]
-        logger.debug("Extracted kernel source starting from '@triton.jit'.")
+    kernel_info = _resolve_kernel_info(launch, comp_idx)
+    if not kernel_info.get("file_path") or not kernel_info.get("function_name"):
+        raise RuntimeError(
+            "Could not resolve kernel file path or function name from NDJSON."
+            " The import-based strategy cannot proceed."
+        )
 
     # flatten launch fields (support both formats)
     grid = launch.get("grid") or (launch.get("payload", {})).get("grid")
@@ -169,7 +190,7 @@ def build_context_bundle(ndjson_path: str, launch_index: int = 0) -> Dict[str, A
     }
 
     bundle = {
-        "kernel_source": kernel_source,
+        "kernel_info": kernel_info,
         "compile": compile_block,
         "launch": {
             "grid": grid,

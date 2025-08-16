@@ -1,0 +1,26 @@
+You are a debugging assistant.
+Your task is to determine if two error messages, despite having different stack traces, point to the same underlying root cause.
+
+Focus on the final error type and message, not the file paths or line numbers in the traceback.
+
+---
+**Target Error (A)**
+(This is the error we want to reproduce)
+```
+{{ target_error }}
+```
+
+---
+**Actual Error from Script (B)**
+(This is the error the generated script produced)
+```
+{{ actual_error }}
+```
+---
+
+Do these two errors represent the same underlying problem?
+For example, if one is `torch.AcceleratorError: CUDA error: an illegal memory access was encountered` and the other is `triton.runtime.driver.OutOfResources: an illegal memory access was encountered`, they ARE the same root cause.
+If one is an `illegal memory access` error and the other is a `misaligned address` error, they are NOT the same.
+If one is a CUDA error and the other is a Python `RuntimeError` about storage size, they are NOT the same.
+
+Answer with a single word: YES or NO.

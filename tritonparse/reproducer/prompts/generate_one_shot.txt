@@ -1,35 +1,35 @@
-Kernel source code:
-{{ kernel_source }}
+Your task is to generate a Python script that runs a Triton kernel by IMPORTING it from its original file.
 
-Compile metadata:
-{{ compile }}
+DO NOT copy the kernel's source code. The script must import it.
 
-Launch config:
-{{ launch }}
+---
+**Original Kernel and Parameters**
 
-Tensor/Scalar arguments:
-{{ args }}
+**Kernel Import Details:**
+- File Path: `{{ kernel_info.file_path }}`
+- Function to Import: `{{ kernel_info.function_name }}`
 
-Environment notes:
-- If tensor strides differ from contiguous, preserve them using as_strided.
-- If any constexpr or kwargs are provided, pass them exactly to the kernel call.
-- Use torch.cuda.synchronize() after kernel launch.
+*(For your reference, the original source code was:)*
+```python
+{{ kernel_info.source_code }}
+```
 
-Generate a single runnable Python file that uses the following pre-generated allocation snippet when possible:
-
-Pre-generated allocation snippet (use it verbatim if compatible):
+**Parameter Allocation Code:**
+```python
 {{ allocation_snippet }}
+```
 
-Kernel call kwargs (JSON):
+**Launch Kwargs:**
+```json
 {{ kwargs_dict }}
+```
 
-Now generate a single runnable Python file that:
-1) imports torch/triton/tl
-2) sets device from the arguments (e.g., "cuda:0"), seeds RNG
-3) allocates tensors with given shape/dtype/stride/device (preserve non-contiguous layouts)
-4) defines the given Triton kernel (exactly as provided)
-5) launches the kernel with grid/num_warps/num_stages/kwargs
-6) prints a small summary (tensor shape/dtype, maybe a[0,0])
-7) can be run via: python repro.py
+**Compile Options:**
+```json
+{{ compile }}
+```
+---
+Now, generate the complete, self-contained Python script that will IMPORT and launch the kernel.
+Remember to add the file's parent directory to `sys.path`.
 
 
