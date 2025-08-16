@@ -240,6 +240,7 @@ def _log_torch_tensor_info(tensor_value):
         dict: A dictionary containing tensor metadata.
     """
     arg_info = {}
+    arg_info["type"] = "tensor"
     arg_info["shape"] = list(tensor_value.shape)
     arg_info["dtype"] = str(tensor_value.dtype)
     arg_info["device"] = str(tensor_value.device)
@@ -856,7 +857,7 @@ def extract_arg_info(arg_dict):
         # Handle custom Tensor/Storage types from triton_kernels
         elif _is_from_triton_kernels_module(arg_value):
             type_name = type(arg_value).__name__
-            arg_info["type"] = type_name
+            arg_info["type"] = f"triton_kernels.tensor.{type_name}"
 
             if type_name == "Tensor":
                 # Dump all attributes needed to reconstruct the Tensor wrapper
@@ -885,6 +886,8 @@ def extract_arg_info(arg_dict):
                     arg_info["data"] = _log_torch_tensor_info(arg_value.data)
                 if hasattr(arg_value, "layout"):
                     arg_info["layout"] = convert(arg_value.layout)
+            else:
+                log.warning(f"Unknown type: {type(arg_value)}")
 
         # Handle scalar values
         elif isinstance(arg_value, (int, float, bool)):
