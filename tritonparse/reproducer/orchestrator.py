@@ -240,15 +240,20 @@ def generate_from_ndjson(
 
     # --- Mode-specific logic ---
     exec_env = None
+    exec_timeout = None  # Default to no timeout
     if is_error_repro_mode:
         # Step 3: Get a structured error analysis from the LLM
         logger.info("Performing structured error analysis via LLM...")
         full_error_text = Path(reproduce_error_from).read_text(encoding="utf-8")
         
-        # Check the ORIGINAL error log for assertion errors, as suggested.
+        # Check for special conditions in the error log to adjust execution parameters.
         if "Assertion" in full_error_text:
             logger.info("Assertion error detected in original log. Setting TRITON_DEBUG=1.")
             exec_env = {"TRITON_DEBUG": "1"}
+        
+        if "hangs" in full_error_text.lower():
+            logger.info("Hang detected in original log. Setting execution timeout to 30s.")
+            exec_timeout = 30
 
         logger.debug("Full error text to be summarized:\n%s", full_error_text)
         summary_context = {"full_error_text": full_error_text}
@@ -375,7 +380,7 @@ def generate_from_ndjson(
                 logger.info("Previous attempt did not fail correctly. Generating new version...")
                 # ... (Logic to regenerate invocation snippet) ...
 
-            rc, out, err = run_python(str(out_py), env=exec_env)
+            rc, out, err = run_python(str(out_py), timeout=exec_timeout, env=exec_env)
             logger.debug(
                 "Execution of attempt %d finished with rc=%d.\nStdout:\n%s\nStderr:\n%s",
                 attempt + 1,
