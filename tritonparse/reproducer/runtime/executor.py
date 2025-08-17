@@ -4,7 +4,7 @@ from typing import Dict, Optional
 import os
 
 
-def run_python(path: str, timeout: int = 60, env: Optional[Dict[str, str]] = None):
+def run_python(path: str, timeout: Optional[int] = None, env: Optional[Dict[str, str]] = None):
     # If custom environment variables are provided, merge them with the current environment
     process_env = os.environ.copy()
     if env:
@@ -17,5 +17,13 @@ def run_python(path: str, timeout: int = 60, env: Optional[Dict[str, str]] = Non
         text=True,
         env=process_env,
     )
-    out, err = p.communicate(timeout=timeout)
-    return p.returncode, out, err
+    try:
+        out, err = p.communicate(timeout=timeout)
+        return p.returncode, out, err
+    except subprocess.TimeoutExpired:
+        p.kill()
+        # After killing, communicate again to get any remaining output
+        out, err_after_kill = p.communicate()
+        err = f"Process timed out after {timeout} seconds and was killed.\n{err_after_kill}"
+        # A non-zero return code is appropriate for a timeout failure.
+        return 1, out, err
