@@ -164,6 +164,7 @@ def generate_from_ndjson(
     reproduce_error_from: Optional[str] = None,
     on_line: Optional[int] = None,
     attempts: int = 10,
+    ai_analysis: bool = False,
     # Common params
     out_dir: Optional[str] = None,
     execute: bool = False,
@@ -242,8 +243,6 @@ def generate_from_ndjson(
     exec_env = None
     exec_timeout = None  # Default to no timeout
     if is_error_repro_mode:
-        # Step 3: Get a structured error analysis from the LLM
-        logger.info("Performing structured error analysis via LLM...")
         full_error_text = Path(reproduce_error_from).read_text(encoding="utf-8")
         
         # Check for special conditions in the error log to adjust execution parameters.
@@ -255,21 +254,24 @@ def generate_from_ndjson(
             logger.info("Hang detected in original log. Setting execution timeout to 30s.")
             exec_timeout = 30
 
-        logger.debug("Full error text to be summarized:\n%s", full_error_text)
-        summary_context = {"full_error_text": full_error_text}
-        summary_prompt = render_prompt("summarize_error.txt", summary_context)
-        # Use a simpler system prompt for the summary task
-        summary_system_prompt = "You are an expert Triton debugging engineer."
-        logger.debug(
-            "Sending summarization prompt to LLM:\n---\n%s\n---\n%s\n---",
-            summary_system_prompt,
-            summary_prompt,
-        )
-        error_analysis_report = provider.generate_code(
-            summary_system_prompt, summary_prompt, **gen_kwargs
-        )
-        context["error_analysis_report"] = error_analysis_report
-        logger.debug("Received error analysis report:\n%s", error_analysis_report)
+        if ai_analysis:
+            # Step 3: Get a structured error analysis from the LLM
+            logger.info("Performing structured error analysis via LLM...")
+            logger.debug("Full error text to be summarized:\n%s", full_error_text)
+            summary_context = {"full_error_text": full_error_text}
+            summary_prompt = render_prompt("summarize_error.txt", summary_context)
+            # Use a simpler system prompt for the summary task
+            summary_system_prompt = "You are an expert Triton debugging engineer."
+            logger.debug(
+                "Sending summarization prompt to LLM:\n---\n%s\n---\n%s\n---",
+                summary_system_prompt,
+                summary_prompt,
+            )
+            error_analysis_report = provider.generate_code(
+                summary_system_prompt, summary_prompt, **gen_kwargs
+            )
+            context["error_analysis_report"] = error_analysis_report
+            logger.debug("Received error analysis report:\n%s", error_analysis_report)
 
     # --- New Template-Based Generation ---
     logger.info("Loading reproducer template.")
@@ -390,7 +392,20 @@ def generate_from_ndjson(
                 "message": "Failed to reproduce the error. The script ran successfully.",
             }
 
-        # Script failed, now verify the error type
+        # Script failed as expected.
+        if not ai_analysis:
+            logger.info(
+                "AI verification skipped. Script failed as expected, marking as a successful reproduction."
+            )
+            return {
+                "path": str(out_py),
+                "returncode": rc,
+                "stdout": out,
+                "stderr": err,
+                "message": "Successfully reproduced the failure (AI verification skipped).",
+            }
+
+        # With AI analysis, proceed to verify the error type.
         logger.info("Script failed as expected. Verifying error type via LLM...")
         verify_ctx = {
             "target_error": context.get("error_analysis_report", ""),

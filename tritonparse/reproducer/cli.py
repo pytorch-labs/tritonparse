@@ -30,6 +30,11 @@ def _add_reproducer_args(parser: argparse.ArgumentParser) -> None:
         help="The line number of the launch event in the NDJSON file to reproduce.",
     )
     parser.add_argument(
+        "--ai-analysis",
+        action="store_true",
+        help="Enable LLM-based analysis and verification for error reproduction.",
+    )
+    parser.add_argument(
         "--attempts",
         type=int,
         default=10,
@@ -94,6 +99,7 @@ def maybe_handle_reproducer(args: argparse.Namespace) -> bool:
         reproduce_error_from=args.reproduce_error_from,
         on_line=args.on_line,
         attempts=args.attempts,
+        ai_analysis=args.ai_analysis,
         # LLM params
         temperature=cfg.temperature,
         max_tokens=cfg.max_tokens,
