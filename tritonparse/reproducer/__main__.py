@@ -61,7 +61,7 @@ def main() -> None:
     res = generate_from_ndjson(
         ndjson_path=args.ndjson,
         provider=provider,
-        out_py=args.out,
+        out_dir=args.out_dir,
         execute=args.execute,
         # Mode-specific params
         launch_index=args.launch_index,

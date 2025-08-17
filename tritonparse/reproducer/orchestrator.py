@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import textwrap
+from datetime import datetime
 
 from .ingestion.ndjson import build_context_bundle, find_launch_index_from_line
 from .param_generator import generate_allocation_snippet, generate_kwargs_dict
@@ -164,7 +165,7 @@ def generate_from_ndjson(
     on_line: Optional[int] = None,
     attempts: int = 10,
     # Common params
-    out_py: str = "repro.py",
+    out_dir: Optional[str] = None,
     execute: bool = False,
     **gen_kwargs,
 ) -> Dict[str, Any]:
@@ -174,18 +175,47 @@ def generate_from_ndjson(
         "Error Reproduction" if is_error_repro_mode else "Success",
     )
 
-    # --- Step 1: Determine target line and create single-event JSON ---
-    temp_json_path = Path(out_py).parent / f"{Path(out_py).stem}_context.json"
-
+    # --- Build the base context bundle ---
+    logger.info("Building context bundle from NDJSON...")
+    # We need the kernel name early to determine the output path.
+    # We determine the target launch index first.
     try:
         if is_error_repro_mode:
             if on_line is None:
                 raise ValueError("on_line must be provided for error reproduction mode.")
-            target_line_num = on_line
             actual_launch_index = find_launch_index_from_line(ndjson_path, on_line)
         else:
-            target_line_num = _find_line_for_launch_index(ndjson_path, launch_index)
             actual_launch_index = launch_index
+    except ValueError as e:
+        logger.error("Failed to determine target launch index: %s", e)
+        raise
+
+    bundle = build_context_bundle(ndjson_path, launch_index=actual_launch_index)
+    context = bundle
+    kernel_name = context.get("kernel_info", {}).get("function_name", "unknown_kernel")
+    logger.debug("Context bundle created with keys: %s", list(context.keys()))
+
+    # --- Step 1: Determine output paths ---
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    if out_dir:
+        output_directory = Path(out_dir)
+    else:
+        # Default path: repro_output/<kernel_name>/
+        output_directory = Path("repro_output") / kernel_name
+    
+    output_directory.mkdir(parents=True, exist_ok=True)
+    
+    out_py = output_directory / f"repro_{timestamp}.py"
+    temp_json_path = output_directory / f"repro_context_{timestamp}.json"
+
+
+    # --- Step 2: Determine target line and create single-event JSON ---
+    try:
+        if is_error_repro_mode:
+            # on_line is already validated above
+            target_line_num = on_line
+        else:
+            target_line_num = _find_line_for_launch_index(ndjson_path, launch_index)
 
         logger.info(
             "Targeting launch event at index %d on line %d.",
@@ -207,12 +237,6 @@ def generate_from_ndjson(
     except (ValueError, FileNotFoundError) as e:
         logger.error("Failed to prepare single-event JSON context: %s", e)
         raise RuntimeError("Failed to prepare single-event JSON context") from e
-
-    # --- Build the base context bundle ---
-    logger.info("Building context bundle from NDJSON...")
-    bundle = build_context_bundle(ndjson_path, launch_index=actual_launch_index)
-    context = bundle
-    logger.debug("Context bundle created with keys: %s", list(context.keys()))
 
     # --- Mode-specific logic ---
     if is_error_repro_mode:
@@ -270,12 +294,12 @@ def generate_from_ndjson(
         "# {{KERNEL_INVOCATION_PLACEHOLDER}}", invocation_snippet
     )
 
-    Path(out_py).write_text(final_code, encoding="utf-8")
+    out_py.write_text(final_code, encoding="utf-8")
     logger.info("Reproducer script saved to: %s", out_py)
     logger.debug("Generated code:\n%s", final_code)
 
     if not execute:
-        return {"path": out_py}
+        return {"path": str(out_py)}
 
     # The execution, repair, and validation logic below remains largely the same,
     # but it will operate on the `final_code` generated from the template.
@@ -291,7 +315,7 @@ def generate_from_ndjson(
     # Execute and optionally repair (SUCCESS-ONLY MODE)
     if not is_error_repro_mode:
         logger.info("Executing script in success mode (up to %d attempts)...", attempts)
-        rc, out, err = run_python(out_py)
+        rc, out, err = run_python(str(out_py))
         # The first attempt is run once, subsequent attempts are retries
         retries_used = 0
         while rc != 0 and retries_used < attempts - 1:
@@ -313,10 +337,10 @@ def generate_from_ndjson(
             # This part needs to be smarter: it should only replace the invocation part
             code_update = provider.generate_code("system_prompt_for_repair", repair_prompt, **gen_kwargs)
             # For now, we just re-generate the whole file for simplicity
-            Path(out_py).write_text(code_update, encoding="utf-8")
+            out_py.write_text(code_update, encoding="utf-8")
             final_code = code_update
             logger.info("Repair attempt %d complete. Re-executing.", retries_used)
-            rc, out, err = run_python(out_py)
+            rc, out, err = run_python(str(out_py))
 
         if rc == 0:
             logger.info("Script executed successfully.")
@@ -324,7 +348,7 @@ def generate_from_ndjson(
             logger.error("Script failed after all repair attempts.")
 
         return {
-            "path": out_py,
+            "path": str(out_py),
             "returncode": rc,
             "stdout": out,
             "stderr": err,
@@ -345,7 +369,7 @@ def generate_from_ndjson(
                 logger.info("Previous attempt did not fail correctly. Generating new version...")
                 # ... (Logic to regenerate invocation snippet) ...
 
-            rc, out, err = run_python(out_py)
+            rc, out, err = run_python(str(out_py))
             logger.debug(
                 "Execution of attempt %d finished with rc=%d.\nStdout:\n%s\nStderr:\n%s",
                 attempt + 1,
@@ -374,7 +398,7 @@ def generate_from_ndjson(
                         attempt + 1,
                     )
                     return {
-                        "path": out_py,
+                        "path": str(out_py),
                         "returncode": rc,
                         "stdout": out,
                         "stderr": err,
@@ -394,7 +418,7 @@ def generate_from_ndjson(
             attempts,
         )
         return {
-            "path": out_py,
+            "path": str(out_py),
             "returncode": 0,
             "stdout": out,
             "stderr": err,
