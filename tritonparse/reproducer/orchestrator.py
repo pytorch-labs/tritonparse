@@ -239,10 +239,17 @@ def generate_from_ndjson(
         raise RuntimeError("Failed to prepare single-event JSON context") from e
 
     # --- Mode-specific logic ---
+    exec_env = None
     if is_error_repro_mode:
         # Step 3: Get a structured error analysis from the LLM
         logger.info("Performing structured error analysis via LLM...")
         full_error_text = Path(reproduce_error_from).read_text(encoding="utf-8")
+        
+        # Check the ORIGINAL error log for assertion errors, as suggested.
+        if "Assertion" in full_error_text:
+            logger.info("Assertion error detected in original log. Setting TRITON_DEBUG=1.")
+            exec_env = {"TRITON_DEBUG": "1"}
+
         logger.debug("Full error text to be summarized:\n%s", full_error_text)
         summary_context = {"full_error_text": full_error_text}
         summary_prompt = render_prompt("summarize_error.txt", summary_context)
@@ -356,11 +363,10 @@ def generate_from_ndjson(
         }
     else:
         # --- Error Reproduction Mode ---
-        # This part will also need significant updates to work with the template model.
-        # For now, the logic is kept as a placeholder to show the structure.
         logger.info(
             "Executing script in error-repro mode (up to %d attempts)...", attempts
         )
+        
         for attempt in range(attempts):
             logger.info("Attempt %d/%d to reproduce error...", attempt + 1, attempts)
 
@@ -369,7 +375,7 @@ def generate_from_ndjson(
                 logger.info("Previous attempt did not fail correctly. Generating new version...")
                 # ... (Logic to regenerate invocation snippet) ...
 
-            rc, out, err = run_python(str(out_py))
+            rc, out, err = run_python(str(out_py), env=exec_env)
             logger.debug(
                 "Execution of attempt %d finished with rc=%d.\nStdout:\n%s\nStderr:\n%s",
                 attempt + 1,
