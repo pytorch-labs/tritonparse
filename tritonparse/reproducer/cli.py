@@ -35,7 +35,12 @@ def _add_reproducer_args(parser: argparse.ArgumentParser) -> None:
         default=10,
         help="Max number of generation attempts. Defaults to 10.",
     )
-    parser.add_argument("--out", default="repro.py")
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Directory to save the reproducer script and context JSON. "
+        "Defaults to 'repro_output/<kernel_name>/'.",
+    )
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
 
@@ -82,7 +87,7 @@ def maybe_handle_reproducer(args: argparse.Namespace) -> bool:
     res = generate_from_ndjson(
         ndjson_path=args.ndjson,
         provider=provider,
-        out_py=args.out,
+        out_dir=args.out_dir,
         execute=args.execute,
         # Mode-specific params
         launch_index=args.launch_index,
