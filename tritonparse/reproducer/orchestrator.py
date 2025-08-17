@@ -368,71 +368,56 @@ def generate_from_ndjson(
         }
     else:
         # --- Error Reproduction Mode ---
-        logger.info(
-            "Executing script in error-repro mode (up to %d attempts)...", attempts
+        logger.info("Executing script in error-repro mode...")
+
+        rc, out, err = run_python(str(out_py), timeout=exec_timeout, env=exec_env)
+        logger.debug(
+            "Execution finished with rc=%d.\nStdout:\n%s\nStderr:\n%s",
+            rc,
+            out,
+            err,
         )
-        
-        for attempt in range(attempts):
-            logger.info("Attempt %d/%d to reproduce error...", attempt + 1, attempts)
 
-            # On subsequent attempts, we need to regenerate the invocation part
-            if attempt > 0:
-                logger.info("Previous attempt did not fail correctly. Generating new version...")
-                # ... (Logic to regenerate invocation snippet) ...
-
-            rc, out, err = run_python(str(out_py), timeout=exec_timeout, env=exec_env)
-            logger.debug(
-                "Execution of attempt %d finished with rc=%d.\nStdout:\n%s\nStderr:\n%s",
-                attempt + 1,
-                rc,
-                out,
-                err,
+        if rc == 0:
+            logger.warning(
+                "Failed to reproduce the error. The script ran successfully."
             )
+            return {
+                "path": str(out_py),
+                "returncode": rc,
+                "stdout": out,
+                "stderr": err,
+                "message": "Failed to reproduce the error. The script ran successfully.",
+            }
 
-            if rc != 0:
-                # ... (Verification logic remains conceptually similar) ...
-                logger.info("Script failed. Verifying error type via LLM...")
-                verify_ctx = {
-                    "target_error": context.get("error_analysis_report", ""),
-                    "actual_error": err,
-                }
-                verify_prompt = render_prompt("verify_error.txt", verify_ctx)
-                verify_system_prompt = "You are a debugging assistant."
-                verification_result = provider.generate_code(
-                    verify_system_prompt, verify_prompt, temperature=0.0
-                ).strip()
-                logger.debug("Verification result from LLM: %s", verification_result)
-
-                if "YES" in verification_result:
-                    logger.info(
-                        "Success! Script failed with the correct error type on attempt %d.",
-                        attempt + 1,
-                    )
-                    return {
-                        "path": str(out_py),
-                        "returncode": rc,
-                        "stdout": out,
-                        "stderr": err,
-                        "message": f"Successfully reproduced the error in {attempt + 1} attempt(s).",
-                        "repro_attempts_used": attempt + 1,
-                    }
-                else:
-                    logger.warning(
-                        "Script failed with an INCORRECT error type on attempt %d.",
-                        attempt + 1,
-                    )
-                    context["last_actual_error"] = err
-
-        # If the loop finishes, we failed to reproduce the error
-        logger.warning(
-            "Failed to reproduce the error after %d attempts. The final script ran successfully.",
-            attempts,
-        )
-        return {
-            "path": str(out_py),
-            "returncode": 0,
-            "stdout": out,
-            "stderr": err,
-            "message": f"Failed to reproduce the error after {attempts} attempts. The last generated script ran successfully.",
-            "repro_attempts_used": attempts,
+        # Script failed, now verify the error type
+        logger.info("Script failed as expected. Verifying error type via LLM...")
+        verify_ctx = {
+            "target_error": context.get("error_analysis_report", ""),
+            "actual_error": err,
         }
+        verify_prompt = render_prompt("verify_error.txt", verify_ctx)
+        verify_system_prompt = "You are a debugging assistant."
+        verification_result = provider.generate_code(
+            verify_system_prompt, verify_prompt, temperature=0.0
+        ).strip()
+        logger.debug("Verification result from LLM: %s", verification_result)
+
+        if "YES" in verification_result:
+            logger.info("Success! Script failed with the correct error type.")
+            return {
+                "path": str(out_py),
+                "returncode": rc,
+                "stdout": out,
+                "stderr": err,
+                "message": "Successfully reproduced the error.",
+            }
+        else:
+            logger.warning("Script failed with an INCORRECT error type.")
+            return {
+                "path": str(out_py),
+                "returncode": rc,
+                "stdout": out,
+                "stderr": err,
+                "message": "Script failed, but with an incorrect error type.",
+            }
