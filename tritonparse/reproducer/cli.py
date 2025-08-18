@@ -86,7 +86,14 @@ def maybe_handle_reproducer(args: argparse.Namespace) -> bool:
     _validate_args(argparse.ArgumentParser(), args)
 
     cfg = load_config()
-    provider = make_gemini_provider()
+    provider = None
+    is_error_repro_mode = args.reproduce_error_from is not None
+
+    # Lazily initialize the provider only if AI is needed.
+    # AI is needed in success mode (for the repair loop) or
+    # if explicitly enabled in error repro mode.
+    if not is_error_repro_mode or args.ai_analysis:
+        provider = make_gemini_provider()
 
     # Pass all relevant args to the orchestrator
     res = generate_from_ndjson(
