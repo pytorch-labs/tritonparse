@@ -2,13 +2,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 import json
-import subprocess
-import sys
-import textwrap
 from datetime import datetime
 
 from .ingestion.ndjson import build_context_bundle, find_launch_index_from_line
-from .param_generator import generate_allocation_snippet, generate_kwargs_dict
 from .prompts.loader import render_prompt
 from .providers.base import LLMProvider
 from .runtime.executor import run_python
@@ -258,8 +254,24 @@ def generate_from_ndjson(
             # Step 3: Get a structured error analysis from the LLM
             logger.info("Performing structured error analysis via LLM...")
             assert provider is not None, "Provider must be initialized for AI analysis."
-            logger.debug("Full error text to be summarized:\n%s", full_error_text)
-            summary_context = {"full_error_text": full_error_text}
+            # Truncate the error text to avoid exceeding token limits.
+            # We keep the tail of the log, which is usually most relevant.
+            max_chars = 500_000
+            if len(full_error_text) > max_chars:
+                logger.warning(
+                    "Original error log is very large (%d chars). "
+                    "Truncating to the last %d chars for AI analysis.",
+                    len(full_error_text),
+                    max_chars,
+                )
+                error_text_for_llm = full_error_text[-max_chars:]
+            else:
+                error_text_for_llm = full_error_text
+
+            logger.debug(
+                "Full error text to be summarized:\n%s", error_text_for_llm
+            )
+            summary_context = {"full_error_text": error_text_for_llm}
             summary_prompt = render_prompt("summarize_error.txt", summary_context)
             # Use a simpler system prompt for the summary task
             summary_system_prompt = "You are an expert Triton debugging engineer."
