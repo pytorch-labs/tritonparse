@@ -6,7 +6,7 @@ import sys
 # Add the path to the custom Tensor implementation
 TRITON_KERNELS_PATH = (
     "/home/users/yhao24/.cache/huggingface/hub/models--kernels-community--"
-    "triton_kernels/snapshots/1d2e9557ac0d4c651055a209055748d4db0fe65b/"
+    "triton_kernels/snapshots/22b535b359d6c144e0152060dc6fec78da07039e/"
     "build/torch-universal/"
 )
 if TRITON_KERNELS_PATH not in sys.path:
