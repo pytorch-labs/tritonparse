@@ -37,24 +37,31 @@ def main() -> None:
     # Validate arguments using the centralized helper function
     _validate_args(p, args)
 
-    try:
-        from .factory import make_gemini_provider
-    except Exception:  # pragma: no cover
-        print(
-            "Failed to import provider factory. Ensure optional deps are installed (e.g. google-genai).",
-            file=sys.stderr,
-        )
-        raise
-
     cfg = load_config()
-    try:
-        provider = make_gemini_provider()
-    except ModuleNotFoundError:  # pragma: no cover
-        print(
-            "Gemini provider requires 'google-genai'. Install via: pip install google-genai",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+    provider = None
+    is_error_repro_mode = args.reproduce_error_from is not None
+
+    # Lazily initialize the provider only if AI is needed.
+    # AI is needed in success mode (for the repair loop) or
+    # if explicitly enabled in error repro mode.
+    if not is_error_repro_mode or args.ai_analysis:
+        try:
+            from .factory import make_gemini_provider
+        except Exception:  # pragma: no cover
+            print(
+                "Failed to import provider factory. Ensure optional deps are installed (e.g. google-genai).",
+                file=sys.stderr,
+            )
+            raise
+        try:
+            provider = make_gemini_provider()
+        except ModuleNotFoundError:  # pragma: no cover
+            print(
+                "Gemini provider requires 'google-genai'. Install via: pip install google-genai",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
     temperature = args.temperature if args.temperature is not None else cfg.temperature
     max_tokens = args.max_tokens if args.max_tokens is not None else cfg.max_tokens
 
@@ -68,6 +75,7 @@ def main() -> None:
         reproduce_error_from=args.reproduce_error_from,
         on_line=args.on_line,
         attempts=args.attempts,
+        ai_analysis=args.ai_analysis,
         # LLM params
         temperature=temperature,
         max_tokens=max_tokens,

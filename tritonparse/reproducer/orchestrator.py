@@ -157,7 +157,7 @@ def _excerpt(s: str, n: int = 160):
 
 def generate_from_ndjson(
     ndjson_path: str,
-    provider: LLMProvider,
+    provider: Optional[LLMProvider],
     *,
     # Mode-specific params
     launch_index: int = 0,
@@ -257,6 +257,7 @@ def generate_from_ndjson(
         if ai_analysis:
             # Step 3: Get a structured error analysis from the LLM
             logger.info("Performing structured error analysis via LLM...")
+            assert provider is not None, "Provider must be initialized for AI analysis."
             logger.debug("Full error text to be summarized:\n%s", full_error_text)
             summary_context = {"full_error_text": full_error_text}
             summary_prompt = render_prompt("summarize_error.txt", summary_context)
@@ -349,6 +350,7 @@ def generate_from_ndjson(
             repair_prompt = render_prompt("repair_loop.txt", repair_ctx) # This prompt might need updating
             logger.debug("Sending repair prompt to LLM:\n%s", repair_prompt)
             # This part needs to be smarter: it should only replace the invocation part
+            assert provider is not None, "Provider must be initialized for repair loop."
             code_update = provider.generate_code("system_prompt_for_repair", repair_prompt, **gen_kwargs)
             # For now, we just re-generate the whole file for simplicity
             out_py.write_text(code_update, encoding="utf-8")
@@ -407,6 +409,7 @@ def generate_from_ndjson(
 
         # With AI analysis, proceed to verify the error type.
         logger.info("Script failed as expected. Verifying error type via LLM...")
+        assert provider is not None, "Provider must be initialized for AI verification."
         verify_ctx = {
             "target_error": context.get("error_analysis_report", ""),
             "actual_error": err,
