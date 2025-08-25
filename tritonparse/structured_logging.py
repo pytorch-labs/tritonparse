@@ -875,12 +875,14 @@ class JITHookImpl(JITHook):
                 return True
 
         # Get the current launch_metadata function if it exists
-        current_launch_metadata = getattr(fn.jit_function, "launch_metadata", None)
+        function = getattr(fn, "jit_function", fn)
+
+        current_launch_metadata = getattr(function, "launch_metadata", None)
         if current_launch_metadata is not None:
             log.warning(
                 f"fn {fn} launch_metadata is not None: {current_launch_metadata}. It will be overridden by tritonparse."
             )
-        fn.jit_function.launch_metadata = add_launch_metadata
+        function.launch_metadata = add_launch_metadata
         return True
 
 
