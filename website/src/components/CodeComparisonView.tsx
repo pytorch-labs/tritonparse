@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import CodeViewer from "./CodeViewer";
+import CopyCodeButton from "./CopyCodeButton";
 import {
     IRFile,
     PythonSourceCodeInfo,
@@ -334,9 +335,15 @@ const CodeComparisonView: React.FC<CodeComparisonViewProps> = ({
         <div className="h-full">
             <div className="bg-blue-600 text-white p-2 font-medium flex justify-between items-center">
                 <span>{title}</span>
-                <span className="text-sm bg-blue-700 px-2 py-1 rounded">
-                    {displayLanguage}
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-sm bg-blue-700 px-2 py-1 rounded">
+                        {displayLanguage}
+                    </span>
+                    <CopyCodeButton 
+                        code={code}
+                        className="text-sm bg-blue-700 px-2 py-1 rounded" 
+                    />
+                </div>
             </div>
             <CodeViewer
                 code={code}

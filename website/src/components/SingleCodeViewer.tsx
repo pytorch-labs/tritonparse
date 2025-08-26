@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import CodeViewer from "./CodeViewer";
 import { IRFile } from "../utils/dataLoader";
 import { getDisplayLanguage } from "./TritonIRs";
+import CopyCodeButton from "./CopyCodeButton";
 
 /**
  * Props for the SingleCodeViewer component
@@ -114,9 +115,15 @@ const SingleCodeViewer: React.FC<SingleCodeViewerProps> = ({
         {/* Panel title bar */}
         <div className="bg-blue-600 text-white p-2 font-medium flex justify-between items-center">
           <span>{title}</span>
-          <span className="text-sm bg-blue-700 px-2 py-1 rounded">
-            {displayLanguage}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm bg-blue-700 px-2 py-1 rounded">
+              {displayLanguage}
+            </span>
+            <CopyCodeButton
+              code={codeContent}
+              className="text-sm bg-blue-700 px-2 py-1 rounded"
+            />
+          </div>
         </div>
         {/* Code content area with fixed height */}
         <div className="h-[calc(100vh-12rem)]">
