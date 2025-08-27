@@ -357,7 +357,7 @@ const KernelOverview: React.FC<KernelOverviewProps> = ({
           <h3 className="text-lg font-medium mb-2 text-gray-800">
             Compilation Stack Trace
           </h3>
-          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto max-h-64">
+          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 overflow-auto resize-y h-80 min-h-24">
             {kernel.stack.map((entry, index) => (
               <div key={index} className="mb-1 font-mono text-sm">
                 <span className="text-blue-600">
