@@ -1013,6 +1013,15 @@ def init(trace_folder: Optional[str] = None, enable_trace_launch: bool = False):
     knobs.compilation.listener = maybe_trace_triton
 
 
+def init_with_env():
+    """
+    This function is used to initialize TritonParse with the environment variable TRITON_TRACE_FOLDER and TRITON_TRACE_LAUNCH specifically.
+    It is only supposed to be used in OSS triton's source code.
+    """
+    if triton_trace_folder:
+        init(triton_trace_folder, enable_trace_launch=TRITON_TRACE_LAUNCH)
+
+
 def clear_logging_config():
     """
     Clear all configurations made by init() and init_basic().
