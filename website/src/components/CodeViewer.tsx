@@ -452,6 +452,17 @@ const LargeFileViewer: React.FC<CodeViewerProps> = ({
               fontSize: "inherit",
               backgroundColor: theme === "light" ? "#fff" : "#1E1E1E",
               padding: "0.5em",
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+            }}
+            lineNumberStyle={{
+              userSelect: "none",
+              opacity: 0.5,
+              width: '3em',
+              display: 'inline-block',
+              textAlign: 'right',
+              marginRight: '0.5em',
+              color: theme === "light" ? "#666" : "#aaa"
             }}
           >
             {visibleCode}
@@ -534,7 +545,15 @@ const StandardCodeViewer: React.FC<CodeViewerProps> = ({
           fontSize: `${fontSize}px`,
           color: theme === "light" ? "#666" : "#aaa"
         }}
+        wrapLongLines={true}
         wrapLines={true}
+        codeTagProps={{
+          style: {
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            textWrap: 'wrap',
+          }
+        }}
         lineProps={(lineNumber) => {
           const isHighlighted = highlightedLines.includes(lineNumber);
           return {
