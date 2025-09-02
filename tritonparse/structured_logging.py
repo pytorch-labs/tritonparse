@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from enum import Enum
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -819,10 +820,18 @@ def extract_arg_info(arg_dict):
     return extracted_args
 
 
-def add_launch_metadata(grid, metadata, arg_dict):
+def add_launch_metadata(grid, metadata, arg_dict, inductor_args=None):
     # Extract detailed argument information
     extracted_args = extract_arg_info(arg_dict)
-    return {"launch_metadata_tritonparse": (grid, metadata._asdict(), extracted_args)}
+    extracted_inductor_args = extract_arg_info(inductor_args) if inductor_args else {}
+    return {
+        "launch_metadata_tritonparse": (
+            grid,
+            metadata._asdict(),
+            extracted_args,
+            extracted_inductor_args,
+        )
+    }
 
 
 class JITHookImpl(JITHook):
@@ -848,6 +857,7 @@ class JITHookImpl(JITHook):
         compile,
         is_manual_warmup: bool,
         already_compiled: bool,
+        inductor_args: Optional[Dict[str, Any]] = None,
     ) -> Optional[bool]:
         """
         Override or set the launch_metadata function for the JIT-compiled kernel.
@@ -882,7 +892,9 @@ class JITHookImpl(JITHook):
             log.warning(
                 f"fn {fn} launch_metadata is not None: {current_launch_metadata}. It will be overridden by tritonparse."
             )
-        function.launch_metadata = add_launch_metadata
+        function.launch_metadata = partial(
+            add_launch_metadata, inductor_args=inductor_args
+        )
         return True
 
 
@@ -946,6 +958,7 @@ class LaunchHookImpl(LaunchHook):
             trace_data["extracted_args"] = launch_metadata_tritonparse[
                 2
             ]  # Now contains detailed arg info
+            trace_data["extracted_inductor_args"] = launch_metadata_tritonparse[3]
         trace_structured_triton("launch", metadata_fn=lambda: convert(trace_data))
 
 
