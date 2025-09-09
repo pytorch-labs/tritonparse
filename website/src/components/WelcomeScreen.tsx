@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 interface WelcomeScreenProps {
   loadDefaultData: () => void;
@@ -10,9 +10,43 @@ interface WelcomeScreenProps {
  * Welcome screen component shown when no data is loaded
  */
 const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFileSelected, openUrlInput }) => {
+  const [isDragOver, setIsDragOver] = useState(false);
+
   // Handle file input change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+
+      // Support NDJSON and compressed files only
+      const fileName = file.name.toLowerCase();
+      const isValidFile = fileName.endsWith(".ndjson") || fileName.endsWith(".gz");
+
+      if (isValidFile) {
+        handleFileSelected(file);
+      }
+    }
+  };
+
+  // Handle drag and drop events
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       const file = files[0];
 
@@ -65,7 +99,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
         </div>
 
         {/* Local File Card */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 relative">
+        <div
+          className={`bg-white p-6 rounded-lg shadow-sm border border-gray-200 relative h-52 transition-all duration-200 ${isDragOver ? 'border-green-400 bg-green-200' : ''
+            }`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <div className="bg-green-50 p-3 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
             {/* This SVG icon represents a document with a plus sign, symbolizing the "Local File"
                 functionality where users can add/upload their own file from their device.
@@ -86,7 +126,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ loadDefaultData, handleFi
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-800 mb-2">Local File</h3>
-          <p className="text-sm text-gray-600 mb-4">Open a Triton log file from your device (NDJSON or .gz)</p>
+          <p className="text-sm text-gray-600 mb-4">
+            {isDragOver ? 'Drop Triton log file here' : 'Open or drag a Triton log file (NDJSON or .gz)'}
+          </p>
           <label htmlFor="welcomeFileInput" className="absolute inset-0 cursor-pointer" aria-label="Open local file" />
           <input
             type="file"
