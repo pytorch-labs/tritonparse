@@ -534,7 +534,14 @@ function App() {
             <a href="https://opensource.fb.com/legal/privacy" className="hover:underline">Privacy Policy</a>
           </div>
           <div className="text-gray-500">
-            Version {import.meta.env.PACKAGE_VERSION}
+            {(() => {
+              const buildDate = new Date(import.meta.env.PACKAGE_BUILD_DATE)
+              const localized = isNaN(buildDate.getTime())
+                ? import.meta.env.PACKAGE_BUILD_DATE
+                : buildDate.toLocaleString()
+              const sha = import.meta.env.GIT_COMMIT_SHA_SHORT
+              return `Version ${import.meta.env.PACKAGE_VERSION} · Built ${localized} · ${sha}`
+            })()}
           </div>
         </div>
       </footer>
