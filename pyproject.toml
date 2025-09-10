@@ -11,15 +11,16 @@ dependencies = [
 requires-python = ">=3.10"
 description = "TritonParse: A Compiler Tracer, Visualizer, and mini-Reproducer Generator for Triton Kernels"
 readme = "README.md"
-[project.optional-dependencies]
-test = [
-    "coverage>=7.0.0",
-]
 authors = [
     { name="Yueming Hao", email="yhao@meta.com" },
 ]
 license = { text = "BSD-3-Clause" }
 
+
+[project.optional-dependencies]
+test = [
+    "coverage>=7.0.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["tritonparse*"]
