@@ -3,6 +3,10 @@ on:
   schedule:
     - cron: "8 7 * * *"   # 07:08 UTC daily
   workflow_dispatch: {}     # allow manual runs (no publish)
+  push:
+    tags:
+      - "v*"
+      - "*.*.*"
 
 permissions:
   contents: read
@@ -27,15 +31,18 @@ jobs:
 
       - name: Compute nightly version from latest tag (per-second)
         id: ver
+        if: github.ref_type != 'tag'
         run: |
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo 0.1.0)
           BASE=${TAG#v}
           DATE=$(date -u +%Y%m%d%H%M%S)
           echo "NVER=${BASE}.dev${DATE}" >> $GITHUB_OUTPUT
 
-      - name: Build sdist/wheel with forced version
+      - name: Build sdist/wheel
         run: |
-          export SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.ver.outputs.NVER }}
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            export SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.ver.outputs.NVER }}
+          fi
           python -m build
 
       - name: Check metadata
@@ -44,7 +51,7 @@ jobs:
           twine check dist/*
 
       - name: Publish to PyPI (API token)
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || github.ref_type == 'tag'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
