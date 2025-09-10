@@ -23,22 +23,22 @@ const buildDate = process.env.BUILD_DATE || new Date().toISOString()
 // Resolve a short commit SHA for build metadata.
 // Precedence:
 // 1) GIT_COMMIT_SHA_SHORT environment variable (CI can set this explicitly)
-// 2) git rev-parse --short HEAD
-// 3) hg id -i (Mercurial)
+// 2) git rev-parse --short HEAD  -> returns "git:<sha>"
+// 3) hg id -i (Mercurial)        -> returns "hg:<sha>"
 // 4) 'unknown' (neither VCS available)
 function resolveCommitSha(): string {
   const envSha = process.env.GIT_COMMIT_SHA_SHORT
   if (envSha) return envSha
 
   // Try Git first, then Mercurial.
-  const candidates = [
-    'git rev-parse --short HEAD',
-    'hg id -i'
+  const candidates: Array<{ cmd: string; prefix: string }> = [
+    { cmd: 'git rev-parse --short HEAD', prefix: 'git:' },
+    { cmd: 'hg id -i', prefix: 'hg:' }
   ]
 
-  for (const command of candidates) {
-    const out = safeExecTrim(command)
-    if (out) return out
+  for (const { cmd, prefix } of candidates) {
+    const out = safeExecTrim(cmd)
+    if (out) return `${prefix}${out}`
   }
   // Final fallback when no VCS is present or accessible.
   return 'unknown'
