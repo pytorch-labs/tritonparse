@@ -4,20 +4,48 @@ import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { execSync } from 'child_process'
 
+// Execute a shell command and return trimmed stdout, or null on failure.
+function safeExecTrim(command: string): string | null {
+  try {
+    return execSync(command).toString().trim() || null
+  } catch {
+    return null
+  }
+}
+
 const packageJson = JSON.parse(
   readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
 )
 
 // Build-time metadata
 const buildDate = process.env.BUILD_DATE || new Date().toISOString()
-let gitSha = process.env.GIT_COMMIT_SHA_SHORT
-if (!gitSha) {
-  try {
-    gitSha = execSync('git rev-parse --short HEAD').toString().trim()
-  } catch {
-    gitSha = 'unknown'
+
+// Resolve a short commit SHA for build metadata.
+// Precedence:
+// 1) GIT_COMMIT_SHA_SHORT environment variable (CI can set this explicitly)
+// 2) git rev-parse --short HEAD
+// 3) hg id -i (Mercurial)
+// 4) 'unknown' (neither VCS available)
+function resolveCommitSha(): string {
+  const envSha = process.env.GIT_COMMIT_SHA_SHORT
+  if (envSha) return envSha
+
+  // Try Git first, then Mercurial.
+  const candidates = [
+    'git rev-parse --short HEAD',
+    'hg id -i'
+  ]
+
+  for (const command of candidates) {
+    const out = safeExecTrim(command)
+    if (out) return out
   }
+  // Final fallback when no VCS is present or accessible.
+  return 'unknown'
 }
+
+// Compute once at config load; injected below via define.
+const gitSha = resolveCommitSha()
 
 export default defineConfig({
   plugins: [
