@@ -2,10 +2,22 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
+import { execSync } from 'child_process'
 
 const packageJson = JSON.parse(
   readFileSync(resolve(__dirname, 'package.json'), 'utf-8')
 )
+
+// Build-time metadata
+const buildDate = process.env.BUILD_DATE || new Date().toISOString()
+let gitSha = process.env.GIT_COMMIT_SHA_SHORT
+if (!gitSha) {
+  try {
+    gitSha = execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    gitSha = 'unknown'
+  }
+}
 
 export default defineConfig({
   plugins: [
@@ -36,6 +48,8 @@ export default defineConfig({
     }
   },
   define: {
-    'import.meta.env.PACKAGE_VERSION': JSON.stringify(packageJson.version)
+    'import.meta.env.PACKAGE_VERSION': JSON.stringify(packageJson.version),
+    'import.meta.env.PACKAGE_BUILD_DATE': JSON.stringify(buildDate),
+    'import.meta.env.GIT_COMMIT_SHA_SHORT': JSON.stringify(gitSha)
   }
 })
