@@ -45,7 +45,7 @@ jobs:
           twine check dist/*
 
       - name: Publish to PyPI (API token)
-        if: github.event_name == 'schedule' && secrets.PYPI_API_TOKEN != ''
+        if: github.event_name == 'schedule'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           user: __token__
