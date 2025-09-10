@@ -1,19 +1,24 @@
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel"]
+requires = ["setuptools>=64", "wheel", "setuptools-scm>=8.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tritonparse"
-version = "0.1.1"
+dynamic = ["version"]
 dependencies = [
     "triton>3.3.1",
 ]
 requires-python = ">=3.10"
-
+description = "TritonParse: A Compiler Tracer, Visualizer, and mini-Reproducer Generator for Triton Kernels"
+readme = "README.md"
 [project.optional-dependencies]
 test = [
     "coverage>=7.0.0",
 ]
+authors = [
+    { name="Yueming Hao", email="yhao@meta.com" },
+]
+license = { text = "BSD-3-Clause" }
 
 
 [tool.setuptools.packages.find]
@@ -29,6 +34,10 @@ sorter = "usort"
 
 [tool.usort]
 first_party_detection = false
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
 
 [project.urls]
 "Homepage" = "https://github.com/meta-pytorch/tritonparse"
