@@ -1,5 +1,4 @@
-name: Nightly PyPI Publish (API Token)
-
+name: Nightly PyPI Publish
 on:
   schedule:
     - cron: "8 7 * * *"   # 07:08 UTC daily
