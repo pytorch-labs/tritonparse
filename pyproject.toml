@@ -14,7 +14,8 @@ readme = "README.md"
 authors = [
     { name="Yueming Hao", email="yhao@meta.com" },
 ]
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE*"]
 
 
 [project.optional-dependencies]

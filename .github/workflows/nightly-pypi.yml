@@ -40,7 +40,7 @@ jobs:
 
       - name: Build sdist/wheel
         run: |
-          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+          if [ "${{ github.ref_type }}" != "tag" ]; then
             export SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.ver.outputs.NVER }}
           fi
           python -m build
