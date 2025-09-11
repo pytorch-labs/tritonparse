@@ -23,23 +23,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install build setuptools-scm
-
-      - name: Compute nightly version from latest tag (per-second)
+      - name: Compute nightly version from latest tag (next patch + timestamp)
         id: ver
         if: github.ref_type != 'tag'
         run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo 0.1.0)
+          # Get latest tag; allow 'v' prefix; fail if none
+          if ! TAG=$(git describe --tags --abbrev=0 2>/dev/null); then
+            echo "::error title=No git tag found::Repository has no tags. Add a semver tag like v0.1.0"
+            exit 1
+          fi
           BASE=${TAG#v}
+          # Keep only X.Y.Z form (strip rc/a/b/post/dev suffixes)
+          BASE=$(printf "%s\n" "$BASE" | sed -E 's/^([0-9]+)\.([0-9]+)\.([0-9]+).*/\1.\2.\3/')
+          IFS='.' read -r MAJ MIN PAT <<EOF
+          $BASE
+          EOF
+          # Use next patch version as the nightly base
+          PAT=$((PAT + 1))
+          NEXT="$MAJ.$MIN.$PAT"
           DATE=$(date -u +%Y%m%d%H%M%S)
-          echo "NVER=${BASE}.dev${DATE}" >> $GITHUB_OUTPUT
+          echo "NVER=${NEXT}.dev${DATE}" >> "$GITHUB_OUTPUT"
+          echo "Computed nightly version: ${NEXT}.dev${DATE}"
 
       - name: Build sdist/wheel
         run: |
+          python -m pip install --upgrade pip
+          pip install build setuptools-scm
           if [ "${{ github.ref_type }}" != "tag" ]; then
             export SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.ver.outputs.NVER }}
           fi
