@@ -15,7 +15,7 @@ show_elapsed() {
 }
 
 # Set Triton version/commit for cache consistency
-TRITON_COMMIT=${TRITON_COMMIT:-"v3.4.0"}
+TRITON_COMMIT=${TRITON_COMMIT:-"main"}
 echo "🎯 Target Triton commit/branch: $TRITON_COMMIT"
 TRITON_SOURCE_DIR="/tmp/triton"
 
