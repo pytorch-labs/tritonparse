@@ -357,15 +357,13 @@ def parse_logs(
                     file_mapping[rank_key]["mapped_file"] = mapped_file
 
     # Clean up the file mapping - remove None mapped_files and ensure no duplicates
-    for rank_key in file_mapping:
+    for rank_key, rank_data in file_mapping.items():
         if rank_key != "tritonparse_url_prefix":
             # Remove duplicates from regular_files
-            file_mapping[rank_key]["regular_files"] = list(
-                set(file_mapping[rank_key]["regular_files"])
-            )
+            rank_data["regular_files"] = list(set(rank_data["regular_files"]))
             # Remove mapped_file if None
-            if file_mapping[rank_key]["mapped_file"] is None:
-                del file_mapping[rank_key]["mapped_file"]
+            if rank_data["mapped_file"] is None:
+                del rank_data["mapped_file"]
     # Save file mapping to parsed_log_dir
     log_file_list_path = os.path.join(parsed_log_dir, "log_file_list.json")
     with open(log_file_list_path, "w") as f:
