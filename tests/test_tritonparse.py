@@ -617,6 +617,7 @@ class TestTritonparseCUDA(unittest.TestCase):
         input_json_path = os.path.join(
             os.path.dirname(__file__),
             "example_output",
+            "repro",
             "repro_context_20250816192455.json",
         )
         grid, args_dict = reproducer_utils.create_args_from_json(input_json_path)
