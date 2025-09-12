@@ -211,7 +211,7 @@ def _is_triton_kernels_layout(obj):
     for base_class in t.__mro__:
         module_name = getattr(base_class, "__module__", "")
         type_name = getattr(base_class, "__name__", "")
-        if type_name == "Layout" and module_name.startswith("triton_kernels_"):
+        if type_name == "Layout" and module_name.startswith("triton_kernels"):
             return True
     return False
 
@@ -225,7 +225,7 @@ def _is_from_triton_kernels_module(obj):
     module_name = getattr(t, "__module__", "")
     type_name = getattr(t, "__name__", "")
     return type_name in ("Tensor", "Storage") and module_name.startswith(
-        "triton_kernels_"
+        "triton_kernels"
     )
 
 
@@ -871,9 +871,7 @@ def extract_arg_info(arg_dict):
                     # Recursively process the storage, which can be another
                     # custom type or a torch.Tensor
                     storage_arg = {"storage": arg_value.storage}
-                    arg_info["storage"] = extract_arg_info(
-                        storage_arg
-                    )["storage"]
+                    arg_info["storage"] = extract_arg_info(storage_arg)["storage"]
 
             elif type_name == "Storage":
                 # Dump all attributes needed to reconstruct the Storage object
