@@ -15,7 +15,6 @@ authors = [
 license = "BSD-3-Clause"
 license-files = ["LICENSE*"]
 
-
 [project.optional-dependencies]
 triton = [
     "triton>3.3.1",
