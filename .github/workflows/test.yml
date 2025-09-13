@@ -192,12 +192,6 @@ jobs:
               run: |
                   bash .ci/setup.sh
 
-            - name: Install Triton from pip
-              env:
-                  CONDA_ENV: tritonparse-pip
-              run: |
-                  bash .ci/install-triton-pip.sh
-
             - name: Install project dependencies
               env:
                   CONDA_ENV: tritonparse-pip
